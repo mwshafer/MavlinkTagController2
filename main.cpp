@@ -13,7 +13,7 @@
 
 using namespace mavsdk;
 
-int main(int /*argc*/, char* /*argv[]*/)
+int main(int /*argc*/, char** /*argv[]*/)
 {
     Mavsdk mavsdk;
     mavsdk.set_configuration(Mavsdk::Configuration(Mavsdk::Configuration::UsageType::CompanionComputer));

@@ -71,9 +71,10 @@ void UDPPulseReceiver::receive()
     typedef struct {
         float snr;
         float confirmationStatus;
+        float timeSeconds;
     } PulseInfo_T;
 
-    PulseInfo_T buffer[256];
+    PulseInfo_T buffer[sizeof(PulseInfo_T) * 10];
 
     auto cBytesReceived = recvfrom(_fdSocket, buffer, sizeof(buffer), 0, NULL, NULL);
 
@@ -89,13 +90,17 @@ void UDPPulseReceiver::receive()
     while (pulseCount--) {
         PulseInfo_T pulseInfo = buffer[pulseIndex++];
 
-    	std::cout << std::dec << "Pulse SNR: " << pulseInfo.snr << " Conf: " << pulseInfo.confirmationStatus << "\n";
+    	std::cout << std::dec << 
+            "Pulse Time: " << pulseInfo.timeSeconds <<
+            " SNR: " << pulseInfo.snr << 
+            " Conf: " << pulseInfo.confirmationStatus << "\n";
 
         mavlink_message_t           message;
         mavlink_debug_float_array_t debugFloatArray;
 
         memset(&debugFloatArray, 0, sizeof(debugFloatArray));
 
+        debugFloatArray.time_usec                           = pulseInfo.timeSeconds * 1000000.0f;
         debugFloatArray.array_id                            = COMMAND_ID_PULSE;
         debugFloatArray.data[PULSE_IDX_STRENGTH]            = pulseInfo.snr;
         debugFloatArray.data[PULSE_IDX_DETECTION_STATUS]    = pulseInfo.confirmationStatus;
