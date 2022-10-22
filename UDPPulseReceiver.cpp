@@ -92,7 +92,9 @@ void UDPPulseReceiver::receive()
     	std::cout << std::dec << "Pulse SNR: " << pulseInfo.snr << " Conf: " << pulseInfo.confirmationStatus << "\n";
 
         mavlink_message_t           message;
-        mavlink_debug_float_array_t debugFloatArray = {0};
+        mavlink_debug_float_array_t debugFloatArray;
+
+        memset(&debugFloatArray, 0, sizeof(debugFloatArray));
 
         debugFloatArray.array_id                            = COMMAND_ID_PULSE;
         debugFloatArray.data[PULSE_IDX_STRENGTH]            = pulseInfo.snr;

@@ -1,71 +1,57 @@
 #include "CommandHandler.h"
 #include "UDPPulseReceiver.h"
 
-#include <mavsdk/mavsdk.h>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 #include <chrono>
 #include <cstdint>
+#include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/action/action.h>
+#include <mavsdk/plugins/telemetry/telemetry.h>
 #include <iostream>
 #include <future>
 #include <memory>
 #include <thread>
 
-
 using namespace mavsdk;
 
-int main(int argc, char* argv[])
+int main(int /*argc*/, char* /*argv[]*/)
 {
     Mavsdk mavsdk;
+    mavsdk.set_configuration(Mavsdk::Configuration(Mavsdk::Configuration::UsageType::CompanionComputer));
 
-    // We start with sysid 1 but adapt to the one of the autopilot once
-    // we have discoverd it.
-    uint8_t our_sysid = 1;
-    mavsdk.set_configuration(Mavsdk::Configuration{our_sysid, MAV_COMP_ID_USER1, false});
-
-    const ConnectionResult connection_result = mavsdk.add_any_connection("udp://:14540");
-
+    ConnectionResult connection_result;
+    connection_result = mavsdk.add_any_connection("udp://0.0.0.0:14561");
     if (connection_result != ConnectionResult::Success) {
-        std::cerr << "Connection failed: " << connection_result << '\n';
+        std::cout << "Connection failed: " << connection_result << std::endl;
         return 1;
     }
 
-    std::cout << "Waiting to discover system...\n";
+    std::cout << "Waiting to discover system..." << std::endl;
     auto prom = std::promise<std::shared_ptr<System>>{};
     auto fut = prom.get_future();
 
-    // We wait for new systems to be discovered, once we find one that has an
-    // autopilot, we decide to use it.
     mavsdk.subscribe_on_new_system([&mavsdk, &prom]() {
         auto system = mavsdk.systems().back();
 
         if (system->has_autopilot()) {
-            std::cout << "Discovered autopilot\n";
-
-            // Unsubscribe again as we only want to find one system.
+            std::cout << "Discovered autopilot" << std::endl;
             mavsdk.subscribe_on_new_system(nullptr);
             prom.set_value(system);
         }
     });
 
     // We usually receive heartbeats at 1Hz, therefore we should find a
-    // system after around 3 seconds max, surely.
-    if (fut.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
-        std::cerr << "No autopilot found, exiting.\n";
+    // system after around 3 seconds.
+    if (fut.wait_for(std::chrono::seconds(3)) == std::future_status::timeout) {
+        std::cout << "No autopilot found, exiting." << std::endl;
         return 1;
     }
 
-    // Get discovered system now.
     auto system = fut.get();
-
-    // Update system ID if required.
-    if (system->get_system_id() != our_sysid) {
-        our_sysid = system->get_system_id();
-        mavsdk.set_configuration(Mavsdk::Configuration{our_sysid, MAV_COMP_ID_USER1, false});
-    }
 
     auto mavlinkPassthrough = MavlinkPassthrough{*system};
     auto udpPulseReceiver   = UDPPulseReceiver{"127.0.0.1", 30000, mavlinkPassthrough};
-    auto commandHandler     = CommandHandler{*system, mavlinkPassthrough};
+    
+    CommandHandler{*system, mavlinkPassthrough};
 
     udpPulseReceiver.start();
 
