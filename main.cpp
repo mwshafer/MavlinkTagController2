@@ -55,7 +55,7 @@ int main(int /*argc*/, char** /*argv[]*/)
 
     udpPulseReceiver.start();
 
-    std::cout << "Ready\n";
+    std::cout << "Ready" << std::endl;
 
     while (true) {
         udpPulseReceiver.receive();

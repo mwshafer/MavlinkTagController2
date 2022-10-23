@@ -93,7 +93,8 @@ void UDPPulseReceiver::receive()
     	std::cout << std::dec << 
             "Pulse Time: " << pulseInfo.timeSeconds <<
             " SNR: " << pulseInfo.snr << 
-            " Conf: " << pulseInfo.confirmationStatus << "\n";
+            " Conf: " << pulseInfo.confirmationStatus << 
+            std::endl;
 
         mavlink_message_t           message;
         mavlink_debug_float_array_t debugFloatArray;
