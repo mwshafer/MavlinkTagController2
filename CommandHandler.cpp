@@ -32,7 +32,7 @@ void CommandHandler::_sendCommandAck(uint32_t commandId, uint32_t result)
     outgoingDebugFloatArray.data[ACK_IDX_COMMAND] = commandId;
     outgoingDebugFloatArray.data[ACK_IDX_RESULT]  = result;
 
-    std::cerr << "_sendCommandAck" << commandId << " " << result << "\n";
+    std::cout << "_sendCommandAck" << commandId << " " << result << std::endl;
 
     mavlink_msg_debug_float_array_encode(
         _mavlinkPassthrough.get_our_sysid(),
@@ -53,12 +53,12 @@ void CommandHandler::_handleTagCommand(const mavlink_debug_float_array_t& debugF
     _tagInfo.intraPulseUncertainty  = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_INTRA_PULSE_JITTER]);
     _tagInfo.maxPulse               = debugFloatArray.data[TAG_IDX_MAX_PULSE];
 
-    std::cout << "handleTagCommand: tagId:freq" << _tagInfo.tagId << " " << _tagInfo.frequency << "\n";
+    std::cout << "handleTagCommand: tagId:freq" << _tagInfo.tagId << " " << _tagInfo.frequency << std::endl;
 
     uint32_t commandResult = 1;
 
     if (_tagInfo.tagId == 0) {
-        std::cout << "handleTagCommand: invalid tag id of 0\n";
+        std::cout << "handleTagCommand: invalid tag id of 0" << std::endl;
         commandResult  = 0;
     }
 
@@ -72,11 +72,11 @@ void CommandHandler::_handleStartDetection(const mavlink_debug_float_array_t& de
     uint32_t commandResult = 1;
 
     if (requestedTagId == _tagInfo.tagId) {
-        std::cout << "handleStartDetection: Detection started for freq " << _tagInfo.frequency << "\n"; 
+        std::cout << "handleStartDetection: Detection started for freq " << _tagInfo.frequency << std::endl; 
     } else {
         std::cout << "handleStartDetection: requested start tag id != known tag id - requested:known " << 
             requestedTagId << " " <<
-            _tagInfo.tagId << "\n";
+            _tagInfo.tagId << std::endl;
         commandResult  = 0;
     }
 
@@ -85,7 +85,7 @@ void CommandHandler::_handleStartDetection(const mavlink_debug_float_array_t& de
 
 void CommandHandler::_handleStopDetection(void)
 {
-    std::cout << "_handleStopDetection: Detection stopped\n"; 
+    std::cout << "_handleStopDetection: Detection stopped" << std::endl; 
     _sendCommandAck(COMMAND_ID_STOP_DETECTION, 1);
 }
 

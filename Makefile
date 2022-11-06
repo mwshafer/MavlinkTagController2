@@ -12,7 +12,7 @@ artifactPath=$(shell pwd)/output/$(appName)_$(version).auterionos
 endif
 
 build-docker: Dockerfile CMakeLists.txt
-	docker build --platform=$(architecture) . -t $(appName):$(version)
+	docker build --network=host --platform=$(architecture) . -t $(appName):$(version)
 
 build: build-docker
 	mkdir -p output

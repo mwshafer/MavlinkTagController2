@@ -69,9 +69,9 @@ void UDPPulseReceiver::receive()
 {
     // Enough for MTU 1500 bytes.
     typedef struct {
-        float snr;
-        float confirmationStatus;
-        float timeSeconds;
+        double snr;
+        double confirmationStatus;
+        double timeSeconds;
     } PulseInfo_T;
 
     PulseInfo_T buffer[sizeof(PulseInfo_T) * 10];
@@ -87,10 +87,11 @@ void UDPPulseReceiver::receive()
 
     int pulseCount = cBytesReceived / sizeof(PulseInfo_T);
     int pulseIndex = 0;
+
     while (pulseCount--) {
         PulseInfo_T pulseInfo = buffer[pulseIndex++];
 
-    	std::cout << std::dec << 
+    	std::cout << std::dec << std::fixed <<
             "Pulse Time: " << pulseInfo.timeSeconds <<
             " SNR: " << pulseInfo.snr << 
             " Conf: " << pulseInfo.confirmationStatus << 
@@ -103,8 +104,10 @@ void UDPPulseReceiver::receive()
 
         debugFloatArray.time_usec                           = pulseInfo.timeSeconds * 1000000.0f;
         debugFloatArray.array_id                            = COMMAND_ID_PULSE;
-        debugFloatArray.data[PULSE_IDX_STRENGTH]            = pulseInfo.snr;
-        debugFloatArray.data[PULSE_IDX_DETECTION_STATUS]    = pulseInfo.confirmationStatus;
+        debugFloatArray.data[PULSE_IDX_SNR]                 = pulseInfo.snr;
+        debugFloatArray.data[PULSE_IDX_CONFIRMED_STATUS]    = pulseInfo.confirmationStatus;
+
+        *((double *)&debugFloatArray.data[PULSE_IDX_TIME_SECS]) = pulseInfo.timeSeconds;
 
         mavlink_msg_debug_float_array_encode(
             _mavlinkPassthrough.get_our_sysid(),

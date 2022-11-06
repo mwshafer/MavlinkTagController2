@@ -11,9 +11,10 @@
 #define ACK_IDX_COMMAND                         0   // Command being acked
 #define ACK_IDX_RESULT                          1   // Command result - 1 success, 0 failure
 
-#define PULSE_IDX_DETECTION_STATUS              0   // Detection status (uint 32)
-#define PULSE_IDX_STRENGTH                      1   // Pulse strength [0-100] (float)
-#define PULSE_IDX_GROUP_INDEX                   2   // Group index 0/1/2 (uint 32)
+#define PULSE_IDX_TIME_SECS						0	// Pulse time in seconds (double)
+#define PULSE_IDX_CONFIRMED_STATUS              18 	// Confirmation status (bool)
+#define PULSE_IDX_SNR                      		9   // Pulse SNR (float)
+#define PULSE_IDX_GROUP_INDEX                   15  // Group index 0/1/2 (uint 32)
 
 #define PULSE_DETECTION_STATUS_SUPER_THRESHOLD  1
 #define PULSE_DETECTION_STATUS_CONFIRMED        2
