@@ -7,3 +7,5 @@ services:
     network_mode:   host
     volumes:
       - '/data/app/mavlink-tag-controller/data:/data'
+    devices:
+      - "/dev/bus/usb"

@@ -7,6 +7,8 @@
 #define COMMAND_ID_START_DETECTION              3   // Start pulse detection
 #define COMMAND_ID_STOP_DETECTION               4   // Stop pulse detection
 #define COMMAND_ID_PULSE                        5   // Detected pulse value
+#define COMMAND_ID_AIRSPY_HF                    6   // Airspy HF save 30 seconds of data
+#define COMMAND_ID_AIRSPY_MINI                  7   // Airspy mini save 30 seconds of data
 
 #define ACK_IDX_COMMAND                         0   // Command being acked
 #define ACK_IDX_RESULT                          1   // Command result - 1 success, 0 failure

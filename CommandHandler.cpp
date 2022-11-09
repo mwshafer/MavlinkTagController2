@@ -9,6 +9,7 @@
 
 #include "CommandHandler.h"
 #include "CommandDefs.h"
+#include "startAirspyProcess.h"
 
 using namespace mavsdk;
 
@@ -91,6 +92,9 @@ void CommandHandler::_handleStopDetection(void)
 
 bool CommandHandler::_handleDebugFloatArray(mavlink_message_t& message)
 {
+    std::thread* hfThread;
+    std::thread* miniThread;
+
     if (message.msgid == MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY) {
         mavlink_debug_float_array_t debugFloatArray;
 
@@ -104,6 +108,16 @@ bool CommandHandler::_handleDebugFloatArray(mavlink_message_t& message)
             break;
         case COMMAND_ID_STOP_DETECTION:
             _handleStopDetection();
+            break;
+        case COMMAND_ID_AIRSPY_HF:
+            std::cout << "Start Airspy HF capture" << std::endl;
+            hfThread = new std::thread(startAirspyHF);
+            _sendCommandAck(COMMAND_ID_AIRSPY_HF, 1);
+            break;
+        case COMMAND_ID_AIRSPY_MINI:
+            std::cout << "Start Airspy Mini" << std::endl;
+            miniThread = new std::thread(startAirspyMini);
+            _sendCommandAck(COMMAND_ID_AIRSPY_MINI, 1);
             break;
         }
     }

@@ -18,6 +18,7 @@ private:
     void _handleStopDetection   (void);
     bool _handleDebugFloatArray (mavlink_message_t& message);
 
+
 private:
     System&             _system;
     MavlinkPassthrough& _mavlinkPassthrough;
