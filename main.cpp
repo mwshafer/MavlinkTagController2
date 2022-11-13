@@ -15,7 +15,7 @@
 
 using namespace mavsdk;
 
-int main(int argc, char** argv[])
+int main(int argc, char** argv)
 {
     // Check that TunnelProtocol hasn't exceed limits
     static_assert(TunnelProtocolValidateSizes, "TunnelProtocolValidateSizes failed");
@@ -24,14 +24,14 @@ int main(int argc, char** argv[])
     mavsdk.set_configuration(Mavsdk::Configuration(1, MAV_COMP_ID_ONBOARD_COMPUTER, true));
 
     if (argc != 2) {
-        std::count << "Connection url must be specified on command line" << std::endl;
+        std::cout << "Connection url must be specified on command line" << std::endl;
         return 1;
     }
 
     ConnectionResult connection_result;
     connection_result = mavsdk.add_any_connection(argv[1]);
     if (connection_result != ConnectionResult::Success) {
-        std::cout << "Connection failed for " << argv[1] ": " << connection_result << std::endl;
+        std::cout << "Connection failed for " << argv[1] << ": " << connection_result << std::endl;
         return 1;
     }
 
@@ -39,12 +39,16 @@ int main(int argc, char** argv[])
     auto autopilotPromise   = std::promise<std::shared_ptr<System>>{};
     auto autopilotFuture    = autopilotPromise.get_future();
     mavsdk.subscribe_on_new_system([&mavsdk, &autopilotPromise]() {
-        auto system = mavsdk.systems().back();
-        std::vector< uint8_t > compIds = system->component_ids();
-        if (std::find(compIds.begin(), compIds.end(), MAV_COMP_ID_AUTOPILOT1) != compIds.end()) {
-            std::cout << "Discovered Autopilot" << std::endl;
-            autopilotPromise.set_value(system);
-            mavsdk.subscribe_on_new_system(nullptr);            
+        std::vector< std::shared_ptr< System > > systems = mavsdk.systems();
+        for (size_t i=0; i<systems.size(); i++) {
+            std::shared_ptr< System > system = systems[i];
+            std::vector< uint8_t > compIds = system->component_ids();
+            if (std::find(compIds.begin(), compIds.end(), MAV_COMP_ID_AUTOPILOT1) != compIds.end()) {
+                std::cout << "Discovered Autopilot" << std::endl;
+                autopilotPromise.set_value(system);
+                mavsdk.subscribe_on_new_system(nullptr);
+                break;         
+            }
         }
     });
     autopilotFuture.wait();
