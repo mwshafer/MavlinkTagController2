@@ -15,7 +15,7 @@
 
 using namespace mavsdk;
 
-int main(int /*argc*/, char** /*argv[]*/)
+int main(int argc, char** argv[])
 {
     // Check that TunnelProtocol hasn't exceed limits
     static_assert(TunnelProtocolValidateSizes, "TunnelProtocolValidateSizes failed");
@@ -23,16 +23,16 @@ int main(int /*argc*/, char** /*argv[]*/)
     Mavsdk mavsdk;
     mavsdk.set_configuration(Mavsdk::Configuration(1, MAV_COMP_ID_ONBOARD_COMPUTER, true));
 
+    if (argc != 2) {
+        std::count << "Connection url must be specified on command line" << std::endl;
+        return 1;
+    }
+
     ConnectionResult connection_result;
-    connection_result = mavsdk.add_any_connection("serial:///dev/ttyS0:1500000");
+    connection_result = mavsdk.add_any_connection(argv[1]);
     if (connection_result != ConnectionResult::Success) {
-        std::cout << "Connection failed for ttyS0: " << connection_result << std::endl;
-        std::cout << "Connecting to udp instead" << std::endl;
-        connection_result = mavsdk.add_any_connection("udp://0.0.0.0:14540");
-        if (connection_result != ConnectionResult::Success) {
-            std::cout << "Connection failed for udp: " << connection_result << std::endl;
-            return 1;
-        }
+        std::cout << "Connection failed for " << argv[1] ": " << connection_result << std::endl;
+        return 1;
     }
 
     std::cout << "Waiting to discover Autopilot\n";
