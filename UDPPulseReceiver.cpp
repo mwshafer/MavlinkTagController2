@@ -1,5 +1,6 @@
 #include "UDPPulseReceiver.h"
-#include "CommandDefs.h"
+#include "TunnelProtocol.h"
+#include "sendTunnelMessage.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -12,6 +13,8 @@
 #include <iostream>
 #include <string.h>
 #include <cstddef>
+
+using namespace TunnelProtocol;
 
 UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkPassthrough& mavlinkPassthrough)
     : _localIp	         (std::move(localIp))
@@ -72,9 +75,9 @@ void UDPPulseReceiver::receive()
         double snr;
         double confirmationStatus;
         double timeSeconds;
-    } PulseInfo_T;
+    } UDPPulseInfo_T;
 
-    PulseInfo_T buffer[sizeof(PulseInfo_T) * 10];
+    UDPPulseInfo_T buffer[sizeof(UDPPulseInfo_T) * 10];
 
     auto cBytesReceived = recvfrom(_fdSocket, buffer, sizeof(buffer), 0, NULL, NULL);
 
@@ -85,35 +88,26 @@ void UDPPulseReceiver::receive()
         return;
     }
 
-    int pulseCount = cBytesReceived / sizeof(PulseInfo_T);
+    int pulseCount = cBytesReceived / sizeof(PulseInfo_t);
     int pulseIndex = 0;
 
     while (pulseCount--) {
-        PulseInfo_T pulseInfo = buffer[pulseIndex++];
+        UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
     	std::cout << std::dec << std::fixed <<
-            "Pulse Time: " << pulseInfo.timeSeconds <<
-            " SNR: " << pulseInfo.snr << 
-            " Conf: " << pulseInfo.confirmationStatus << 
+            "Pulse Time: " << udpPulseInfo.timeSeconds <<
+            " SNR: " << udpPulseInfo.snr << 
+            " Conf: " << udpPulseInfo.confirmationStatus << 
             std::endl;
 
-        mavlink_message_t           message;
-        mavlink_debug_float_array_t debugFloatArray;
+        PulseInfo_t pulseInfo;
 
-        memset(&debugFloatArray, 0, sizeof(debugFloatArray));
+        memset(&pulseInfo, 0, sizeof(pulseInfo));
 
-        debugFloatArray.time_usec                           = pulseInfo.timeSeconds * 1000000.0f;
-        debugFloatArray.array_id                            = COMMAND_ID_PULSE;
-        debugFloatArray.data[PULSE_IDX_SNR]                 = pulseInfo.snr;
-        debugFloatArray.data[PULSE_IDX_CONFIRMED_STATUS]    = pulseInfo.confirmationStatus;
+        pulseInfo.startTimeMSecs            = udpPulseInfo.timeSeconds;
+        pulseInfo.snr = udpPulseInfo.snr    = udpPulseInfo.snr;
+        pulseInfo.confirmedStatus           = udpPulseInfo.confirmationStatus;
 
-        *((double *)&debugFloatArray.data[PULSE_IDX_TIME_SECS]) = pulseInfo.timeSeconds;
-
-        mavlink_msg_debug_float_array_encode(
-            _mavlinkPassthrough.get_our_sysid(),
-            _mavlinkPassthrough.get_our_compid(),
-            &message,
-            &debugFloatArray);
-        _mavlinkPassthrough.send_message(message);        
+        sendTunnelMessage(_mavlinkPassthrough, &pulseInfo, sizeof(pulseInfo));
     }
 }

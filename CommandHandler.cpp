@@ -8,10 +8,12 @@
 #include <thread>
 
 #include "CommandHandler.h"
-#include "CommandDefs.h"
+#include "TunnelProtocol.h"
 #include "startAirspyProcess.h"
+#include "sendTunnelMessage.h"
 
 using namespace mavsdk;
+using namespace TunnelProtocol;
 
 CommandHandler::CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough)
     : _system               (system)
@@ -19,108 +21,91 @@ CommandHandler::CommandHandler(System& system, MavlinkPassthrough& mavlinkPassth
 {
     using namespace std::placeholders;
 
-    _mavlinkPassthrough.intercept_incoming_messages_async(std::bind(&CommandHandler::_handleDebugFloatArray, this, _1));
+    _mavlinkPassthrough.subscribe_message_async(MAVLINK_MSG_ID_TUNNEL, std::bind(&CommandHandler::_handleTunnelMessage, this, _1));
 }
 
-void CommandHandler::_sendCommandAck(uint32_t commandId, uint32_t result)
+void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
 {
-    mavlink_message_t           message;
-    mavlink_debug_float_array_t outgoingDebugFloatArray;
+    AckInfo_t           ackInfo;
 
-    memset(&outgoingDebugFloatArray, 0, sizeof(outgoingDebugFloatArray));
+    std::cerr << "_sendCommandAck command:result " << command << " " << result << std::endl;
 
-    outgoingDebugFloatArray.array_id              = COMMAND_ID_ACK;
-    outgoingDebugFloatArray.data[ACK_IDX_COMMAND] = commandId;
-    outgoingDebugFloatArray.data[ACK_IDX_RESULT]  = result;
+    ackInfo.header.command  = COMMAND_ID_ACK;
+    ackInfo.command         = command;
+    ackInfo.result          = result;
 
-    std::cout << "_sendCommandAck" << commandId << " " << result << std::endl;
-
-    mavlink_msg_debug_float_array_encode(
-        _mavlinkPassthrough.get_our_sysid(),
-        _mavlinkPassthrough.get_our_compid(),
-        &message,
-        &outgoingDebugFloatArray);
-    _mavlinkPassthrough.send_message(message);        
+    sendTunnelMessage(_mavlinkPassthrough, &ackInfo, sizeof(ackInfo));
 }
 
-void CommandHandler::_handleTagCommand(const mavlink_debug_float_array_t& debugFloatArray)
+
+void CommandHandler::_handleTagCommand(const mavlink_tunnel_t& tunnel)
 {
-    _tagInfo.tagId                  = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_ID]);
-    _tagInfo.frequency              = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_FREQUENCY]);
-    _tagInfo.pulseDuration          = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_DURATION_MSECS]);
-    _tagInfo.intraPulse1            = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_INTRA_PULSE1_MSECS]);
-    _tagInfo.intraPulse2            = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_INTRA_PULSE2_MSECS]);
-    _tagInfo.intraPulseUncertainty  = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_INTRA_PULSE_UNCERTAINTY]);
-    _tagInfo.intraPulseUncertainty  = static_cast<uint32_t>(debugFloatArray.data[TAG_IDX_INTRA_PULSE_JITTER]);
-    _tagInfo.maxPulse               = debugFloatArray.data[TAG_IDX_MAX_PULSE];
+    if (tunnel.payload_length != sizeof(_tagInfo)) {
+        std::cout << "CommandHandler::_handleTagCommand ERROR - Payload length incorrect expected:actual " << sizeof(_tagInfo) << " " << tunnel.payload_length;
+        return;
+    }
 
-    std::cout << "handleTagCommand: tagId:freq" << _tagInfo.tagId << " " << _tagInfo.frequency << std::endl;
+    memcpy(&_tagInfo, tunnel.payload, sizeof(_tagInfo));
 
-    uint32_t commandResult = 1;
+    std::cout << "handleTagCommand: id:freq" << _tagInfo.id << " " << _tagInfo.frequencyHz << std::endl;
 
-    if (_tagInfo.tagId == 0) {
+    uint32_t commandResult = COMMAND_RESULT_SUCCESS;
+
+    if (_tagInfo.id == 0) {
         std::cout << "handleTagCommand: invalid tag id of 0" << std::endl;
-        commandResult  = 0;
+        commandResult  = COMMAND_RESULT_FAILURE;
     }
 
     _sendCommandAck(COMMAND_ID_TAG, commandResult);
 }
 
-void CommandHandler::_handleStartDetection(const mavlink_debug_float_array_t& debugFloatArray)
+void CommandHandler::_handleStartDetection(void)
 {
-    uint32_t requestedTagId = static_cast<uint32_t>(debugFloatArray.data[START_DETECTION_IDX_TAG_ID]);
-
-    uint32_t commandResult = 1;
-
-    if (requestedTagId == _tagInfo.tagId) {
-        std::cout << "handleStartDetection: Detection started for freq " << _tagInfo.frequency << std::endl; 
-    } else {
-        std::cout << "handleStartDetection: requested start tag id != known tag id - requested:known " << 
-            requestedTagId << " " <<
-            _tagInfo.tagId << std::endl;
-        commandResult  = 0;
-    }
-
-    _sendCommandAck(COMMAND_ID_START_DETECTION, commandResult);
+    std::cout << "handleStartDetection: NYI " << std::endl; 
+    _sendCommandAck(COMMAND_ID_START_DETECTION, COMMAND_RESULT_SUCCESS);
 }
 
 void CommandHandler::_handleStopDetection(void)
 {
-    std::cout << "_handleStopDetection: Detection stopped" << std::endl; 
-    _sendCommandAck(COMMAND_ID_STOP_DETECTION, 1);
+    std::cout << "handleStopDetection: NYI " << std::endl; 
+    _sendCommandAck(COMMAND_ID_STOP_DETECTION, COMMAND_RESULT_SUCCESS);
 }
 
-bool CommandHandler::_handleDebugFloatArray(mavlink_message_t& message)
+void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
 {
-    std::thread* hfThread;
-    std::thread* miniThread;
+    mavlink_tunnel_t tunnel;
 
-    if (message.msgid == MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY) {
-        mavlink_debug_float_array_t debugFloatArray;
+    mavlink_msg_tunnel_decode(&message, &tunnel);
 
-        mavlink_msg_debug_float_array_decode(&message, &debugFloatArray);
-        switch (debugFloatArray.array_id) {
-        case COMMAND_ID_TAG:
-            _handleTagCommand(debugFloatArray);
-            break;
-        case COMMAND_ID_START_DETECTION:
-            _handleStartDetection(debugFloatArray);
-            break;
-        case COMMAND_ID_STOP_DETECTION:
-            _handleStopDetection();
-            break;
-        case COMMAND_ID_AIRSPY_HF:
-            std::cout << "Start Airspy HF capture" << std::endl;
-            hfThread = new std::thread(startAirspyHF);
-            _sendCommandAck(COMMAND_ID_AIRSPY_HF, 1);
-            break;
-        case COMMAND_ID_AIRSPY_MINI:
-            std::cout << "Start Airspy Mini" << std::endl;
-            miniThread = new std::thread(startAirspyMini);
-            _sendCommandAck(COMMAND_ID_AIRSPY_MINI, 1);
-            break;
-        }
+    HeaderInfo_t headerInfo;
+
+    if (tunnel.payload_length < sizeof(headerInfo)) {
+        std::cout << "CommandHandler::_handleTunnelMessage payload too small" << std::endl;
+        return;
     }
 
-    return true;
+    memcpy(&headerInfo, tunnel.payload, sizeof(headerInfo));
+
+    switch (headerInfo.command) {
+    case COMMAND_ID_TAG:
+        _handleTagCommand(tunnel);
+        break;
+    case COMMAND_ID_START_DETECTION:
+        _handleStartDetection();
+        break;
+    case COMMAND_ID_STOP_DETECTION:
+        _handleStopDetection();
+        break;
+    case COMMAND_ID_AIRSPY_HF:
+        std::cout << "Start Airspy HF capture" << std::endl;
+        new std::thread(startAirspyHF);
+        _sendCommandAck(COMMAND_ID_AIRSPY_HF, COMMAND_RESULT_SUCCESS);
+        break;
+    case COMMAND_ID_AIRSPY_MINI:
+        std::cout << "Start Airspy Mini" << std::endl;
+        new std::thread(startAirspyMini);
+        _sendCommandAck(COMMAND_ID_AIRSPY_MINI, COMMAND_RESULT_SUCCESS);
+        break;
+    }
+
 }

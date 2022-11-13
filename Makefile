@@ -13,14 +13,26 @@ endif
 
 build-docker: Dockerfile CMakeLists.txt
 	docker build --network=host --platform=$(architecture) . -t $(appName):$(version)
-
-build: build-docker
 	mkdir -p output
 	docker save $(appName):$(version) | gzip > output/$(appName).image
 	$(toolsPath)/package_app.sh --app=$(appName) --version=$(version) --device=$(device)
 
-install:
+install-docker:
 	$(toolsPath)/update.py --artifact $(artifactPath) --device-ip $(deviceIp)
 	
-remove:
+remove-docker:
 	$(toolsPath)/remove_app.sh -d $(deviceIp) -n $(appName)
+
+build:
+	@cmake -Bbuild -H.; cmake --build build -j 12
+
+install:
+	@cmake -Bbuild -H.; cmake --build build --target install -j 12
+
+clean:
+	@rm -rf output/
+	@rm -rf build/
+	@echo "All build artifacts removed"
+
+.PHONY: build install clean
+

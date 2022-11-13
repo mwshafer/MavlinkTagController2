@@ -3,7 +3,7 @@
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
-#include "TagInfo.h"
+#include "TunnelProtocol.h"
 
 using namespace mavsdk;
 
@@ -12,15 +12,15 @@ public:
     CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough);
 
 private:
-    void _sendCommandAck        (uint32_t commandId, uint32_t result);
-    void _handleTagCommand      (const mavlink_debug_float_array_t& debugFloatArray);
-    void _handleStartDetection  (const mavlink_debug_float_array_t& debugFloatArray);
+    void _sendCommandAck        (uint32_t command, uint32_t result);
+    void _handleTagCommand      (const mavlink_tunnel_t& tunnel);
+    void _handleStartDetection  (void);
     void _handleStopDetection   (void);
-    bool _handleDebugFloatArray (mavlink_message_t& message);
+    void _handleTunnelMessage   (const mavlink_message_t& message);
 
 
 private:
-    System&             _system;
-    MavlinkPassthrough& _mavlinkPassthrough;
-    TagInfo             _tagInfo;
+    System&                     _system;
+    MavlinkPassthrough&         _mavlinkPassthrough;
+    TunnelProtocol::TagInfo_t   _tagInfo;
 };

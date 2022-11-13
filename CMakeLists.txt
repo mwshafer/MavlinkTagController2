@@ -16,12 +16,13 @@ find_package(MAVSDK REQUIRED)
 
 add_executable(MavlinkTagController
     main.cpp
-    CommandHandler.cpp
-    UDPPulseReceiver.cpp
-    startAirspyProcess.cpp
+    CommandHandler.cpp CommandHandler.h
+    UDPPulseReceiver.cpp UDPPulseReceiver.h
+    startAirspyProcess.cpp startAirspyProcess.h
+    sendTunnelMessage.cpp sendTunnelMessage.h
+    TunnelProtocol.h
 )
 
 target_link_libraries(MavlinkTagController
-    MAVSDK::mavsdk_mavlink_passthrough
     MAVSDK::mavsdk
 )

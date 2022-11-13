@@ -1,4 +1,32 @@
-FROM auterion/ubuntu-mavsdk:v0.40.0 as build-stage
+FROM arm64v8/ubuntu:focal as build-stage
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Packages required to build Mavsdk
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential cmake git openssh-client \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3 python3-future \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git config --global http.sslverify false
+RUN git config --global https.sslverify false
+
+WORKDIR /build-mavsdk
+RUN git clone https://github.com/mavlink/MAVSDK.git
+WORKDIR /build-mavsdk/MAVSDK
+RUN git checkout v1.4.7
+RUN git submodule update --init --recursive
+
+RUN cmake -Bbuild/default -DCMAKE_BUILD_TYPE=Release -H.
+RUN cmake --build build/default -j12
+RUN cmake --build build/default --target install
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -30,17 +58,16 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     airspy \
-    libjsoncpp1 \
-    libcurl4 \
-    libncurses5 \
-    libtinyxml2-6a \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+#    libjsoncpp1 \
+#    libcurl4 \
+#    libncurses5 \
+#    libtinyxml2-6a \
+
 WORKDIR /app
-COPY --from=auterion/ubuntu-mavsdk:v0.40.0 /buildroot/libmavsdk*.deb /tmp/
-COPY --from=build-stage /buildroot/build/MavlinkTagController /app/
-RUN dpkg -i /tmp/*.deb
+COPY --from=build-stage /usr/local/lib/libmavsdk*.* /app/
 
 COPY --from=build-stage /build-airspy/airspyhf/build/libairspyhf/src/libairspyhf.so.0 /app/
 COPY --from=build-stage /build-airspy/airspyhf/build/libairspyhf/src/libairspyhf.so /app/
