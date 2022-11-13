@@ -104,9 +104,9 @@ void UDPPulseReceiver::receive()
 
         memset(&pulseInfo, 0, sizeof(pulseInfo));
 
-        pulseInfo.startTimeMSecs            = udpPulseInfo.timeSeconds;
+        pulseInfo.start_time_seconds        = udpPulseInfo.timeSeconds;
         pulseInfo.snr = udpPulseInfo.snr    = udpPulseInfo.snr;
-        pulseInfo.confirmedStatus           = udpPulseInfo.confirmationStatus;
+        pulseInfo.confirmed_status          = udpPulseInfo.confirmationStatus;
 
         sendTunnelMessage(_mavlinkPassthrough, &pulseInfo, sizeof(pulseInfo));
     }

@@ -13,6 +13,8 @@ public:
 
 private:
     void _sendCommandAck        (uint32_t command, uint32_t result);
+    void _handleStartTags       (void);
+    void _handleEndTags         (void);
     void _handleTagCommand      (const mavlink_tunnel_t& tunnel);
     void _handleStartDetection  (void);
     void _handleStopDetection   (void);

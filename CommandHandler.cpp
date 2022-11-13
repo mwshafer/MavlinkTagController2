@@ -40,23 +40,50 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
 
 void CommandHandler::_handleTagCommand(const mavlink_tunnel_t& tunnel)
 {
+    TagInfo_t   newTagInfo;
+    uint32_t    commandResult = COMMAND_RESULT_SUCCESS;
+
+    if (_tagInfo.id != 0) {        
+        std::cout << "CommandHandler::_handleTagCommand ERROR - Previous tag still set. Forgot to send COMMAND_ID_START_TAGS?" << std::endl;
+        goto Error;
+    }
+
     if (tunnel.payload_length != sizeof(_tagInfo)) {
         std::cout << "CommandHandler::_handleTagCommand ERROR - Payload length incorrect expected:actual " << sizeof(_tagInfo) << " " << tunnel.payload_length;
-        return;
+        goto Error;
     }
 
-    memcpy(&_tagInfo, tunnel.payload, sizeof(_tagInfo));
+    memcpy(&newTagInfo, tunnel.payload, sizeof(newTagInfo));
 
-    std::cout << "handleTagCommand: id:freq" << _tagInfo.id << " " << _tagInfo.frequencyHz << std::endl;
-
-    uint32_t commandResult = COMMAND_RESULT_SUCCESS;
-
-    if (_tagInfo.id == 0) {
-        std::cout << "handleTagCommand: invalid tag id of 0" << std::endl;
-        commandResult  = COMMAND_RESULT_FAILURE;
+    if (newTagInfo.id == 0) {
+        std::cout << "CommandHandler::_handleTagCommand: invalid tag id of 0" << std::endl;
+        goto Error;
     }
 
+    std::cout << "CommandHandler::handleTagCommand: id:freq" << newTagInfo.id << " " << newTagInfo.frequency_hz << std::endl;
+
+    _tagInfo = newTagInfo;
+
+Out:
     _sendCommandAck(COMMAND_ID_TAG, commandResult);
+    return;
+
+Error:
+    commandResult  = COMMAND_RESULT_FAILURE;
+    goto Out;
+}
+
+void CommandHandler::_handleStartTags(void)
+{
+    std::cout << "_handleStartTags" << std::endl;
+    _tagInfo.id = 0; 
+    _sendCommandAck(COMMAND_ID_START_TAGS, COMMAND_RESULT_SUCCESS);
+}
+
+void CommandHandler::_handleEndTags(void)
+{
+    std::cout << "_handleEndTags" << std::endl;
+    _sendCommandAck(COMMAND_ID_END_TAGS, COMMAND_RESULT_SUCCESS);
 }
 
 void CommandHandler::_handleStartDetection(void)
@@ -87,6 +114,12 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     memcpy(&headerInfo, tunnel.payload, sizeof(headerInfo));
 
     switch (headerInfo.command) {
+    case COMMAND_ID_START_TAGS:
+        _handleStartTags();
+        break;
+    case COMMAND_ID_END_TAGS:
+        _handleEndTags();
+        break;
     case COMMAND_ID_TAG:
         _handleTagCommand(tunnel);
         break;

@@ -1,6 +1,7 @@
 #include "CommandHandler.h"
 #include "UDPPulseReceiver.h"
 #include "startAirspyProcess.h"
+#include "TunnelProtocol.h"
 
 #include <chrono>
 #include <cstdint>
@@ -16,6 +17,9 @@ using namespace mavsdk;
 
 int main(int /*argc*/, char** /*argv[]*/)
 {
+    // Check that TunnelProtocol hasn't exceed limits
+    static_assert(TunnelProtocolValidateSizes, "TunnelProtocolValidateSizes failed");
+
     Mavsdk mavsdk;
     mavsdk.set_configuration(Mavsdk::Configuration(1, MAV_COMP_ID_ONBOARD_COMPUTER, true));
 
@@ -31,10 +35,7 @@ int main(int /*argc*/, char** /*argv[]*/)
         }
     }
 
-
     std::cout << "Waiting to discover Autopilot\n";
-
-    // Wait 3 seconds for the Autopilot System to show up
     auto autopilotPromise   = std::promise<std::shared_ptr<System>>{};
     auto autopilotFuture    = autopilotPromise.get_future();
     mavsdk.subscribe_on_new_system([&mavsdk, &autopilotPromise]() {
@@ -46,12 +47,9 @@ int main(int /*argc*/, char** /*argv[]*/)
             mavsdk.subscribe_on_new_system(nullptr);            
         }
     });
-    if (autopilotFuture.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
-        std::cerr << "No autopilot found, exiting.\n";
-        return 1;
-    }
+    autopilotFuture.wait();
 
-    // Since we can't do anything without the QGC connection we wait for it indefinitely
+    std::cout << "Waiting to discover QGC\n";
     auto qgcPromise = std::promise<std::shared_ptr<System>>{};
     auto qgcFuture  = qgcPromise.get_future();
     mavsdk.subscribe_on_new_system([&mavsdk, &qgcPromise]() {
