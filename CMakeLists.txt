@@ -20,6 +20,7 @@ add_executable(MavlinkTagController
     UDPPulseReceiver.cpp UDPPulseReceiver.h
     startAirspyProcess.cpp startAirspyProcess.h
     sendTunnelMessage.cpp sendTunnelMessage.h
+    sendStatusText.cpp sendStatusText.h
     uavrt_interfaces/include/uavrt_interfaces/TunnelProtocol.h
 )
 

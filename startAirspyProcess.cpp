@@ -8,12 +8,14 @@
 #include <errno.h>
 #include <string.h>
 
-void startAirspyHF(void)
+void startAirspyHF(bool* signal)
 {
    	std::system("./airspyhf_rx -f 146 -m on -a 192000 -g on -l high -t 0 -r /home/pi/data/airspy_hf.dat -n 5760000");
+   	*signal = true;
 }
 
-void startAirspyMini(void)
+void startAirspyMini(bool* signal)
 {
    	std::system("airspy_rx -r /home/pi/data/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000");
+   	*signal = true;
 }

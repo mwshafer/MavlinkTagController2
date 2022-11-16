@@ -2,6 +2,8 @@
 #include "UDPPulseReceiver.h"
 #include "startAirspyProcess.h"
 #include "TunnelProtocol.h"
+#include "sendTunnelMessage.h"
+#include "sendStatusText.h"
 
 #include <chrono>
 #include <cstdint>
@@ -35,53 +37,50 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    std::cout << "Waiting to discover Autopilot\n";
-    auto autopilotPromise   = std::promise<std::shared_ptr<System>>{};
-    auto autopilotFuture    = autopilotPromise.get_future();
-    mavsdk.subscribe_on_new_system([&mavsdk, &autopilotPromise]() {
+    // We need to wait for both the Autopilot and QGC Systems to become availaable
+
+    bool foundAutopilot = false;
+    bool foundQGC       = false;
+
+    std::shared_ptr<System> autopilotSystem;
+    std::shared_ptr<System> qgcSystem;
+
+    std::cout << "Waiting to discover Autopilot and QGC" << std::endl;
+    while (!foundAutopilot || !foundQGC) {
         std::vector< std::shared_ptr< System > > systems = mavsdk.systems();
         for (size_t i=0; i<systems.size(); i++) {
             std::shared_ptr< System > system = systems[i];
             std::vector< uint8_t > compIds = system->component_ids();
-            if (std::find(compIds.begin(), compIds.end(), MAV_COMP_ID_AUTOPILOT1) != compIds.end()) {
-                std::cout << "Discovered Autopilot" << std::endl;
-                autopilotPromise.set_value(system);
-                mavsdk.subscribe_on_new_system(nullptr);
-                break;         
+            for (size_t i=0; i < compIds.size(); i++) {
+                auto compId = compIds[i];
+                if (!foundAutopilot && compId == MAV_COMP_ID_AUTOPILOT1) {
+                    std::cout << "Discovered Autopilot" << std::endl;
+                    autopilotSystem = system;
+                    foundAutopilot  = true;
+                } else if (!foundQGC && compId == MAV_COMP_ID_MISSIONPLANNER && system->get_system_id() == 255) {
+                    std::cout << "Discovered QGC" << std::endl;
+                    qgcSystem = system;
+                    foundQGC = true;
+                } 
             }
         }
-    });
-    autopilotFuture.wait();
-
-    std::cout << "Waiting to discover QGC\n";
-    auto qgcPromise = std::promise<std::shared_ptr<System>>{};
-    auto qgcFuture  = qgcPromise.get_future();
-    mavsdk.subscribe_on_new_system([&mavsdk, &qgcPromise]() {
-        auto system = mavsdk.systems().back();
-        std::vector< uint8_t > compIds = system->component_ids();
-        if (std::find(compIds.begin(), compIds.end(), MAV_COMP_ID_MISSIONPLANNER) != compIds.end()) {
-            std::cout << "Discovered QGC" << std::endl;
-            qgcPromise.set_value(system);
-            mavsdk.subscribe_on_new_system(nullptr);            
-        }
-    });
-    qgcFuture.wait();
-
-    // We have both systems ready for use now
-    auto autopilotSystem    = autopilotFuture.get();
-    auto qgcSystem          = qgcFuture.get();
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
 
     auto mavlinkPassthrough = MavlinkPassthrough{ qgcSystem };
     auto udpPulseReceiver   = UDPPulseReceiver{ "127.0.0.1", 30000, mavlinkPassthrough };
     
-    CommandHandler{ *qgcSystem, mavlinkPassthrough };
+    auto commandHandler = CommandHandler{ *qgcSystem, mavlinkPassthrough };
 
     udpPulseReceiver.start();
 
     std::cout << "Ready" << std::endl;
+    sendStatusText(mavlinkPassthrough, "MavlinkTagController Ready");
 
     while (true) {
         udpPulseReceiver.receive();
+        commandHandler.process();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 

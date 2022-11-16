@@ -11,6 +11,7 @@
 #include "TunnelProtocol.h"
 #include "startAirspyProcess.h"
 #include "sendTunnelMessage.h"
+#include "sendStatusText.h"
 
 using namespace mavsdk;
 using namespace TunnelProtocol;
@@ -131,14 +132,28 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
         break;
     case COMMAND_ID_AIRSPY_HF:
         std::cout << "Start Airspy HF capture" << std::endl;
-        new std::thread(startAirspyHF);
+        sendStatusText(_mavlinkPassthrough, "Start Airspy HF capture");
+        new std::thread(startAirspyHF, &_airspyHFCaptureComplete);
         _sendCommandAck(COMMAND_ID_AIRSPY_HF, COMMAND_RESULT_SUCCESS);
         break;
     case COMMAND_ID_AIRSPY_MINI:
-        std::cout << "Start Airspy Mini" << std::endl;
-        new std::thread(startAirspyMini);
+        std::cout << "Start Airspy Mini capture" << std::endl;
+        sendStatusText(_mavlinkPassthrough, "Start Airspy Mini capture");
+        new std::thread(startAirspyMini, &_airspyHFCaptureComplete);
         _sendCommandAck(COMMAND_ID_AIRSPY_MINI, COMMAND_RESULT_SUCCESS);
         break;
     }
+}
 
+void CommandHandler::process(void)
+{
+    if (_airspyHFCaptureComplete) {
+        _airspyHFCaptureComplete = false;
+        std::cout << "Airspy HF capture complete" << std::endl;
+        sendStatusText(_mavlinkPassthrough, "Airspy HF capture complete");
+    } else if (_airspyMiniCaptureComplete) {
+        _airspyMiniCaptureComplete = false;
+        std::cout << "Airspy HF capture complete" << std::endl;
+        sendStatusText(_mavlinkPassthrough, "Airspy HF capture complete");        
+    }
 }

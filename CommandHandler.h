@@ -11,6 +11,8 @@ class CommandHandler {
 public:
     CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough);
 
+    void process(void);
+
 private:
     void _sendCommandAck        (uint32_t command, uint32_t result);
     void _handleStartTags       (void);
@@ -25,4 +27,6 @@ private:
     System&                     _system;
     MavlinkPassthrough&         _mavlinkPassthrough;
     TunnelProtocol::TagInfo_t   _tagInfo;
+    bool                        _airspyMiniCaptureComplete  = false;
+    bool                        _airspyHFCaptureComplete    = false;
 };

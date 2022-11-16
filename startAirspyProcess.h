@@ -1,4 +1,4 @@
 #pragma once
 
-void startAirspyHF(void);
-void startAirspyMini(void);
+void startAirspyHF(bool* signal);
+void startAirspyMini(bool* signal);
