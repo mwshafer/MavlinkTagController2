@@ -69,7 +69,7 @@ int main(int argc, char** argv)
     }
 
     auto mavlinkPassthrough = MavlinkPassthrough{ qgcSystem };
-    auto udpPulseReceiver   = UDPPulseReceiver{ "127.0.0.1", 30000, mavlinkPassthrough };
+    auto udpPulseReceiver   = UDPPulseReceiver{ std::string("127.0.0.1"), 30000, mavlinkPassthrough };
     
     auto commandHandler = CommandHandler{ *qgcSystem, mavlinkPassthrough };
 

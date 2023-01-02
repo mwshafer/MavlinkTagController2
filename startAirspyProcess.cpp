@@ -10,7 +10,7 @@
 
 void startAirspyHF(bool* signal)
 {
-   	std::system("./airspyhf_rx -f 146 -m on -a 192000 -g on -l high -t 0 -r /home/pi/data/airspy_hf.dat -n 5760000");
+   	std::system("airspyhf_rx -f 146 -m on -a 192000 -g on -l high -t 0 -r /home/pi/data/airspy_hf.dat -n 5760000");
    	*signal = true;
 }
 

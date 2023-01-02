@@ -21,7 +21,6 @@ UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkPa
     , _localPort         (localPort)
     , _mavlinkPassthrough(mavlinkPassthrough)
 {
-
 }
 
 UDPPulseReceiver::~UDPPulseReceiver()
@@ -52,9 +51,11 @@ bool UDPPulseReceiver::_setupPort(void)
     addr.sin_port           = htons(_localPort);
 
     if (bind(_fdSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        std::cout << "bind error: " << strerror(errno) << "\n";
+        std::cout << "bind error: " << strerror(errno) << std::endl;
         return false;
     }
+
+    std::cout << "UDPPulseReceiver::_setupPort " << _localIp << " port: " << _localPort << std::endl;
 
     return true;
 }
@@ -84,11 +85,11 @@ void UDPPulseReceiver::receive()
     if (cBytesReceived < 0) {
         // This happens on destruction when close(_fdSocket) is called,
         // therefore be quiet.
-        std::cout << "recvfrom error: " << strerror(errno);
+        std::cout << "recvfrom error: " << strerror(errno) << std::endl;
         return;
     }
 
-    int pulseCount = cBytesReceived / sizeof(PulseInfo_t);
+    int pulseCount = cBytesReceived / sizeof(UDPPulseInfo_T);
     int pulseIndex = 0;
 
     while (pulseCount--) {
@@ -104,6 +105,7 @@ void UDPPulseReceiver::receive()
 
         memset(&pulseInfo, 0, sizeof(pulseInfo));
 
+        pulseInfo.header.command            = COMMAND_ID_PULSE;
         pulseInfo.start_time_seconds        = udpPulseInfo.timeSeconds;
         pulseInfo.snr = udpPulseInfo.snr    = udpPulseInfo.snr;
         pulseInfo.confirmed_status          = udpPulseInfo.confirmationStatus;
