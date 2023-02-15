@@ -139,7 +139,7 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     case COMMAND_ID_AIRSPY_MINI:
         std::cout << "Start Airspy Mini capture" << std::endl;
         sendStatusText(_mavlinkPassthrough, "Start Airspy Mini capture");
-        new std::thread(startAirspyMini, &_airspyHFCaptureComplete);
+        new std::thread(startAirspyMini, &_airspyMiniCaptureComplete);
         _sendCommandAck(COMMAND_ID_AIRSPY_MINI, COMMAND_RESULT_SUCCESS);
         break;
     }
@@ -154,6 +154,6 @@ void CommandHandler::process(void)
     } else if (_airspyMiniCaptureComplete) {
         _airspyMiniCaptureComplete = false;
         std::cout << "Airspy HF capture complete" << std::endl;
-        sendStatusText(_mavlinkPassthrough, "Airspy HF capture complete");        
+        sendStatusText(_mavlinkPassthrough, "Airspy Mini capture complete");        
     }
 }
