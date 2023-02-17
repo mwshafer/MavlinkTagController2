@@ -1,7 +1,13 @@
 #include "sendTunnelMessage.h"
 
+#include <mutex>
+
 void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPayload, size_t tunnelPayloadSize)
 {
+    static std::mutex sendMutex;
+
+    sendMutex.lock();
+
     mavlink_message_t   message;
     mavlink_tunnel_t    tunnel;
 
@@ -19,5 +25,7 @@ void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPaylo
         mavlinkPassthrough.get_our_compid(),
         &message,
         &tunnel);
-    mavlinkPassthrough.send_message(message);        	
+    mavlinkPassthrough.send_message(message);  
+
+    sendMutex.unlock();      	
 }

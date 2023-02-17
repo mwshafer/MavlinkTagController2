@@ -13,14 +13,17 @@
 #include <iostream>
 #include <string.h>
 #include <cstddef>
+#include <chrono>
 
 using namespace TunnelProtocol;
+
 
 UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkPassthrough& mavlinkPassthrough)
     : _localIp	         (std::move(localIp))
     , _localPort         (localPort)
     , _mavlinkPassthrough(mavlinkPassthrough)
 {
+
 }
 
 UDPPulseReceiver::~UDPPulseReceiver()
@@ -29,11 +32,14 @@ UDPPulseReceiver::~UDPPulseReceiver()
     stop();
 }
 
+
 void UDPPulseReceiver::start()
 {
     if (!_setupPort()) {
         return;
     }
+
+    _thread = new std::thread(&UDPPulseReceiver::_receive, this);
 }
 
 bool UDPPulseReceiver::_setupPort(void)
@@ -69,47 +75,55 @@ void UDPPulseReceiver::stop()
     close(_fdSocket);
 }
 
-void UDPPulseReceiver::receive()
+void UDPPulseReceiver::_receive()
 {
-    // Enough for MTU 1500 bytes.
-    typedef struct {
-        double snr;
-        double confirmationStatus;
-        double timeSeconds;
-    } UDPPulseInfo_T;
+    while (true) {
+        // Enough for MTU 1500 bytes.
+        typedef struct {
+            double id;
+            double snr;
+            double confirmationStatus;
+            double timeSeconds;
+        } UDPPulseInfo_T;
 
-    UDPPulseInfo_T buffer[sizeof(UDPPulseInfo_T) * 10];
+        UDPPulseInfo_T buffer[sizeof(UDPPulseInfo_T) * 10];
 
-    auto cBytesReceived = recvfrom(_fdSocket, buffer, sizeof(buffer), 0, NULL, NULL);
+        auto cBytesReceived = recvfrom(_fdSocket, buffer, sizeof(buffer), 0, NULL, NULL);
 
-    if (cBytesReceived < 0) {
-        // This happens on destruction when close(_fdSocket) is called,
-        // therefore be quiet.
-        std::cout << "recvfrom error: " << strerror(errno) << std::endl;
-        return;
-    }
+        if (cBytesReceived < 0) {
+            // This happens on destruction when close(_fdSocket) is called,
+            // therefore be quiet.
+            std::cout << "recvfrom error: " << strerror(errno) << std::endl;
+            return;
+        }
 
-    int pulseCount = cBytesReceived / sizeof(UDPPulseInfo_T);
-    int pulseIndex = 0;
+        int pulseCount = cBytesReceived / sizeof(UDPPulseInfo_T);
+        int pulseIndex = 0;
 
-    while (pulseCount--) {
-        UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
+        while (pulseCount--) {
+            UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
-    	std::cout << std::dec << std::fixed <<
-            "Pulse Time: " << udpPulseInfo.timeSeconds <<
-            " SNR: " << udpPulseInfo.snr << 
-            " Conf: " << udpPulseInfo.confirmationStatus << 
-            std::endl;
+            std::cout << std::dec << std::fixed <<
+                "Id: " << int(udpPulseInfo.id) <<
+                " Pulse Time: " << udpPulseInfo.timeSeconds <<
+                " SNR: " << udpPulseInfo.snr << 
+                " Conf: " << udpPulseInfo.confirmationStatus << 
+                std::endl;
 
-        PulseInfo_t pulseInfo;
+            PulseInfo_t pulseInfo;
 
-        memset(&pulseInfo, 0, sizeof(pulseInfo));
+            memset(&pulseInfo, 0, sizeof(pulseInfo));
 
-        pulseInfo.header.command            = COMMAND_ID_PULSE;
-        pulseInfo.start_time_seconds        = udpPulseInfo.timeSeconds;
-        pulseInfo.snr = udpPulseInfo.snr    = udpPulseInfo.snr;
-        pulseInfo.confirmed_status          = udpPulseInfo.confirmationStatus;
+            pulseInfo.header.command            = COMMAND_ID_PULSE;
+            pulseInfo.tag_id                    = udpPulseInfo.id;
+            pulseInfo.start_time_seconds        = udpPulseInfo.timeSeconds;
+            pulseInfo.snr = udpPulseInfo.snr    = udpPulseInfo.snr;
+            pulseInfo.confirmed_status          = udpPulseInfo.confirmationStatus;
 
-        sendTunnelMessage(_mavlinkPassthrough, &pulseInfo, sizeof(pulseInfo));
+            sendTunnelMessage(_mavlinkPassthrough, &pulseInfo, sizeof(pulseInfo));
+
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(10ms);
+        }
     }
 }

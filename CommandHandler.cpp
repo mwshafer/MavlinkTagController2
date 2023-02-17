@@ -1,24 +1,39 @@
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
+
 #include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <future>
 #include <memory>
 #include <thread>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include "CommandHandler.h"
 #include "TunnelProtocol.h"
-#include "startAirspyProcess.h"
 #include "sendTunnelMessage.h"
 #include "sendStatusText.h"
+#include "MonitoredProcess.h"
 
 using namespace mavsdk;
 using namespace TunnelProtocol;
 
+template<typename ... Args>
+std::string string_format( const std::string& format, Args ... args )
+{
+    size_t size = snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
+    std::unique_ptr<char[]> buf( new char[ size ] ); 
+    snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+}
+
 CommandHandler::CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough)
     : _system               (system)
     , _mavlinkPassthrough   (mavlinkPassthrough)
+    , _homePath             (getenv("HOME"))
 {
     using namespace std::placeholders;
 
@@ -38,65 +53,122 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
     sendTunnelMessage(_mavlinkPassthrough, &ackInfo, sizeof(ackInfo));
 }
 
-
-void CommandHandler::_handleTagCommand(const mavlink_tunnel_t& tunnel)
+bool CommandHandler::_handleStartTags(void)
 {
-    TagInfo_t   newTagInfo;
-    uint32_t    commandResult = COMMAND_RESULT_SUCCESS;
+    std::cout << "_handleStartTags _receivingTags:_detectorsRunnings " << _receivingTags << " " << _detectorsRunning << std::endl;
 
-    if (_tagInfo.id != 0) {        
-        std::cout << "CommandHandler::_handleTagCommand ERROR - Previous tag still set. Forgot to send COMMAND_ID_START_TAGS?" << std::endl;
-        goto Error;
+    if (!_receivingTags && !_detectorsRunning) {
+        _tagDatabase.clear();
+        _receivingTags = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool CommandHandler::_handleTag(const mavlink_tunnel_t& tunnel)
+{
+    TagInfo_t tagInfo;
+
+    if (tunnel.payload_length != sizeof(tagInfo)) {
+        std::cout << "CommandHandler::_handleTagCommand ERROR - Payload length incorrect expected:actual " << sizeof(tagInfo) << " " << tunnel.payload_length;
+        return false;
     }
 
-    if (tunnel.payload_length != sizeof(_tagInfo)) {
-        std::cout << "CommandHandler::_handleTagCommand ERROR - Payload length incorrect expected:actual " << sizeof(_tagInfo) << " " << tunnel.payload_length;
-        goto Error;
+    memcpy(&tagInfo, tunnel.payload, sizeof(tagInfo));
+
+    if (tagInfo.id < 2) {
+        std::cout << "CommandHandler::_handleTagCommand: invalid tag id of 0/1" << std::endl;
+        return false;
     }
 
-    memcpy(&newTagInfo, tunnel.payload, sizeof(newTagInfo));
+    if (_tagDatabase.size() == 2) {
+        std::cout << "CommandHandler::_handleTagCommand: Only two tags supported" << std::endl;
+        return false;
+    } 
 
-    if (newTagInfo.id == 0) {
-        std::cout << "CommandHandler::_handleTagCommand: invalid tag id of 0" << std::endl;
-        goto Error;
+    std::cout << "CommandHandler::handleTagCommand: id:freq:intra_pulse1_msecs " 
+                << tagInfo.id << " " 
+                << tagInfo.frequency_hz << " "
+                << tagInfo.intra_pulse1_msecs << " "
+                << std::endl;
+
+    _tagDatabase.push_back(tagInfo);
+
+    return true;
+}
+
+bool CommandHandler::_handleEndTags(void)
+{
+    std::cout << "_handleEndTags _receivingTags " << _receivingTags << std::endl;
+
+    if (_receivingTags) {
+        _receivingTags = false;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool CommandHandler::_handleStartDetection(void)
+{
+    std::cout << "_handleStartDetection _receivingTags:_detectorsRunnings:_tagDatabase.size " 
+        << _receivingTags << " " 
+        << _detectorsRunning << " " <<
+        _tagDatabase.size() << std::endl;
+
+    if (_receivingTags || _detectorsRunning || _tagDatabase.size() == 0) {
+        return false;
     }
 
-    std::cout << "CommandHandler::handleTagCommand: id:freq" << newTagInfo.id << " " << newTagInfo.frequency_hz << std::endl;
+    if (!_writeDetectorConfig(0) || !_writeDetectorConfig(1)) {
+        return false;
+    }
 
-    _tagInfo = newTagInfo;
+    std::string commandStr  = string_format("python3 %s/repos/UDPDecimate/UDPDecimate.py --pulse-freq %d",
+                                _homePath,
+                                _tagDatabase[0].frequency_hz);
+    std::string logPath     = string_format("%s/UDPDecimate.log",
+                                _homePath);
 
-Out:
-    _sendCommandAck(COMMAND_ID_TAG, commandResult);
-    return;
+    MonitoredProcess* decimateProc = new MonitoredProcess(_mavlinkPassthrough, "UDPDecimate", commandStr.c_str(), logPath.c_str(), true /* restart */);
+    decimateProc->start();
 
-Error:
-    commandResult  = COMMAND_RESULT_FAILURE;
-    goto Out;
+    for (size_t i=0; i<_tagDatabase.size(); i++) {
+
+        // FIXME: We leak MonitoredProcess objects here
+        commandStr  = string_format("%s/repos/uavrt_detection/uavrt_detection %s",
+                        _homePath,
+                        _detectorConfigFileName(i).c_str());
+        logPath     = _detectorLogFileName(i);
+
+        MonitoredProcess* detectorProc1 = new MonitoredProcess(_mavlinkPassthrough, "uavrt_detection", commandStr.c_str(), logPath.c_str(), true /* restart */);
+        detectorProc1->start();
+    }
+
+    _detectorsRunning = true;
+
+    return true;
 }
 
-void CommandHandler::_handleStartTags(void)
+bool CommandHandler::_handleStopDetection(void)
 {
-    std::cout << "_handleStartTags" << std::endl;
-    _tagInfo.id = 0; 
-    _sendCommandAck(COMMAND_ID_START_TAGS, COMMAND_RESULT_SUCCESS);
-}
+    std::cout << "_handleStopDetection _detectorsRunnings " << _detectorsRunning << std::endl;
 
-void CommandHandler::_handleEndTags(void)
-{
-    std::cout << "_handleEndTags" << std::endl;
-    _sendCommandAck(COMMAND_ID_END_TAGS, COMMAND_RESULT_SUCCESS);
-}
-
-void CommandHandler::_handleStartDetection(void)
-{
-    std::cout << "handleStartDetection: NYI " << std::endl; 
-    _sendCommandAck(COMMAND_ID_START_DETECTION, COMMAND_RESULT_SUCCESS);
-}
-
-void CommandHandler::_handleStopDetection(void)
-{
-    std::cout << "handleStopDetection: NYI " << std::endl; 
     _sendCommandAck(COMMAND_ID_STOP_DETECTION, COMMAND_RESULT_SUCCESS);
+
+    return true;
+}
+
+bool CommandHandler::_handleAirspyMini(void)
+{
+    std::string commandStr = string_format("airspy_rx -r %s/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000", _homePath);
+    std::string logPath     = string_format("%s/airspy_mini.log", _homePath);
+
+    MonitoredProcess* airspyProcess = new MonitoredProcess(_mavlinkPassthrough, "mini-capture", commandStr.c_str(), logPath.c_str(), false /* restart */);
+    airspyProcess->start();
+
+    return true;
 }
 
 void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
@@ -114,46 +186,82 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
 
     memcpy(&headerInfo, tunnel.payload, sizeof(headerInfo));
 
+    bool success = false;
+
     switch (headerInfo.command) {
     case COMMAND_ID_START_TAGS:
-        _handleStartTags();
+        success = _handleStartTags();
         break;
     case COMMAND_ID_END_TAGS:
-        _handleEndTags();
+        success = _handleEndTags();
         break;
     case COMMAND_ID_TAG:
-        _handleTagCommand(tunnel);
+        success = _handleTag(tunnel);
         break;
     case COMMAND_ID_START_DETECTION:
-        _handleStartDetection();
+        success = _handleStartDetection();
         break;
     case COMMAND_ID_STOP_DETECTION:
-        _handleStopDetection();
-        break;
-    case COMMAND_ID_AIRSPY_HF:
-        std::cout << "Start Airspy HF capture" << std::endl;
-        sendStatusText(_mavlinkPassthrough, "Start Airspy HF capture");
-        new std::thread(startAirspyHF, &_airspyHFCaptureComplete);
-        _sendCommandAck(COMMAND_ID_AIRSPY_HF, COMMAND_RESULT_SUCCESS);
+        success = _handleStopDetection();
         break;
     case COMMAND_ID_AIRSPY_MINI:
-        std::cout << "Start Airspy Mini capture" << std::endl;
-        sendStatusText(_mavlinkPassthrough, "Start Airspy Mini capture");
-        new std::thread(startAirspyMini, &_airspyMiniCaptureComplete);
-        _sendCommandAck(COMMAND_ID_AIRSPY_MINI, COMMAND_RESULT_SUCCESS);
+        success = _handleAirspyMini();
         break;
     }
+
+
+    _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE);
 }
 
-void CommandHandler::process(void)
+bool CommandHandler::_writeDetectorConfig(int tagIndex)
 {
-    if (_airspyHFCaptureComplete) {
-        _airspyHFCaptureComplete = false;
-        std::cout << "Airspy HF capture complete" << std::endl;
-        sendStatusText(_mavlinkPassthrough, "Airspy HF capture complete");
-    } else if (_airspyMiniCaptureComplete) {
-        _airspyMiniCaptureComplete = false;
-        std::cout << "Airspy HF capture complete" << std::endl;
-        sendStatusText(_mavlinkPassthrough, "Airspy Mini capture complete");        
+    TagInfo_t&  tagInfo     = _tagDatabase[tagIndex];
+    std::string configPath  = _detectorConfigFileName(tagIndex);
+
+    std::cout << "_writeDetectorConfig " << configPath << std::endl;
+
+    FILE* fp = fopen(configPath.c_str(), "w");
+    if (fp == NULL) {
+        std::cout << "_writeDetectorConfig fopen failed - " << strerror(errno) << std::endl;
+        return false;
     }
+
+    double freqMHz = double(tagInfo.frequency_hz) / 100000.0;
+
+    fprintf(fp, "##################################################\n");
+    fprintf(fp, "ID:\t%d\n", tagInfo.id);
+    fprintf(fp, "channelCenterFreqMHz:\t%f\n", freqMHz);
+    fprintf(fp, "timeStamp:\t1646403180.469\n");
+    fprintf(fp, "ipData:\t127.0.0.1\n");
+    fprintf(fp, "portData:\t%d\n", 20000 + tagIndex);
+    fprintf(fp, "ipCntrl:\t127.0.0.1\n");
+    fprintf(fp, "portCntrl:\t30000\n");
+    fprintf(fp, "Fs:\t4000\n");
+    fprintf(fp, "tagFreqMHz:\t%f\n", freqMHz);
+    fprintf(fp, "tp:\t0.015\n");
+    fprintf(fp, "tip:\t%f\n", double(tagInfo.intra_pulse1_msecs) / 1000.0);
+    fprintf(fp, "tipu:\t0.06000\n");
+    fprintf(fp, "tipj:\t0.020000\n");
+    fprintf(fp, "K:\t3\n");
+    fprintf(fp, "opMode:\tfreqSearchHardLock\n");
+    fprintf(fp, "excldFreqs:\t[Inf, -Inf]\n");
+    fprintf(fp, "falseAlarmProb:\t0.05\n");
+    fprintf(fp, "dataRecordPath:\t%s/data_record.bin\n", _homePath);
+    fprintf(fp, "processedOuputPath:\t%s\n", _homePath);
+    fprintf(fp, "ros2enable:\tfalse\n");
+    fprintf(fp, "startInRunState:\ttrue\n");
+
+    fclose(fp);
+
+    return true;
+}
+
+std::string CommandHandler::_detectorConfigFileName(int tagIndex)
+{
+    return string_format("%s/detector.%d.config", _homePath, _tagDatabase[tagIndex].id);
+}
+
+std::string CommandHandler::_detectorLogFileName(int tagIndex)
+{
+    return string_format("%s/detector.%d.log", _homePath, _tagDatabase[tagIndex].id);
 }

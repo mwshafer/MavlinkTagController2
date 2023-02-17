@@ -5,4 +5,4 @@
 
 using namespace mavsdk;
 
-void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text);
+void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text, uint8_t severity = MAV_SEVERITY_INFO);

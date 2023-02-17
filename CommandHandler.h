@@ -4,6 +4,7 @@
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
 #include "TunnelProtocol.h"
+#include "TagDatabase.h"
 
 using namespace mavsdk;
 
@@ -11,22 +12,24 @@ class CommandHandler {
 public:
     CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough);
 
-    void process(void);
-
 private:
     void _sendCommandAck        (uint32_t command, uint32_t result);
-    void _handleStartTags       (void);
-    void _handleEndTags         (void);
-    void _handleTagCommand      (const mavlink_tunnel_t& tunnel);
-    void _handleStartDetection  (void);
-    void _handleStopDetection   (void);
+    bool _handleStartTags       (void);
+    bool _handleEndTags         (void);
+    bool _handleTag             (const mavlink_tunnel_t& tunnel);
+    bool _handleStartDetection  (void);
+    bool _handleStopDetection   (void);
+    bool _handleAirspyMini      (void);
     void _handleTunnelMessage   (const mavlink_message_t& message);
-
+    bool _writeDetectorConfig   (int tagIndex);
+    std::string _detectorConfigFileName (int tagIndex);
+    std::string _detectorLogFileName    (int tagIndex);
 
 private:
     System&                     _system;
     MavlinkPassthrough&         _mavlinkPassthrough;
-    TunnelProtocol::TagInfo_t   _tagInfo;
-    bool                        _airspyMiniCaptureComplete  = false;
-    bool                        _airspyHFCaptureComplete    = false;
+    TagDatabase                 _tagDatabase;
+    bool                        _receivingTags      = false;
+    bool                        _detectorsRunning   = false;
+    char*                       _homePath           = NULL;
 };

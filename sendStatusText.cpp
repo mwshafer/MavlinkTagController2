@@ -1,13 +1,19 @@
 #include "sendStatusText.h"
 
-void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text)
+#include <mutex>
+
+void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text, uint8_t severity)
 {
+    static std::mutex sendMutex;
+
+    sendMutex.lock();
+
     mavlink_message_t       message;
     mavlink_statustext_t    statustext;
 
     memset(&statustext, 0, sizeof(statustext));
 
-    statustext.severity = MAV_SEVERITY_INFO;
+    statustext.severity = severity;
 
     strncpy(statustext.text, text, MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN);
 
@@ -17,4 +23,6 @@ void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text)
         &message,
         &statustext);
     mavlinkPassthrough.send_message(message);        	
+
+    sendMutex.unlock();       
 }
