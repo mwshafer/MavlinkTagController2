@@ -16,19 +16,10 @@
 #include "sendTunnelMessage.h"
 #include "sendStatusText.h"
 #include "MonitoredProcess.h"
+#include "formatString.h"
 
 using namespace mavsdk;
 using namespace TunnelProtocol;
-
-template<typename ... Args>
-std::string string_format( const std::string& format, Args ... args )
-{
-    size_t size = snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
-    if( size <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
-    std::unique_ptr<char[]> buf( new char[ size ] ); 
-    snprintf( buf.get(), size, format.c_str(), args ... );
-    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
-}
 
 CommandHandler::CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough)
     : _system               (system)
@@ -104,6 +95,11 @@ bool CommandHandler::_handleEndTags(void)
 
     if (_receivingTags) {
         _receivingTags = false;
+        if (!_writeDetectorConfig(0) || !_writeDetectorConfig(1)) {
+            return false;
+        }
+        remove(_detectorLogFileName(0).c_str());
+        remove(_detectorLogFileName(1).c_str());
         return true;
     } else {
         return false;
@@ -121,14 +117,10 @@ bool CommandHandler::_handleStartDetection(void)
         return false;
     }
 
-    if (!_writeDetectorConfig(0) || !_writeDetectorConfig(1)) {
-        return false;
-    }
-
-    std::string commandStr  = string_format("python3 %s/repos/UDPDecimate/UDPDecimate.py --pulse-freq %d",
+    std::string commandStr  = formatString("python3 %s/repos/UDPDecimate/UDPDecimate.py --pulse-freq %d",
                                 _homePath,
                                 _tagDatabase[0].frequency_hz);
-    std::string logPath     = string_format("%s/UDPDecimate.log",
+    std::string logPath     = formatString("%s/UDPDecimate.log",
                                 _homePath);
 
     MonitoredProcess* decimateProc = new MonitoredProcess(_mavlinkPassthrough, "UDPDecimate", commandStr.c_str(), logPath.c_str(), true /* restart */);
@@ -137,7 +129,7 @@ bool CommandHandler::_handleStartDetection(void)
     for (size_t i=0; i<_tagDatabase.size(); i++) {
 
         // FIXME: We leak MonitoredProcess objects here
-        commandStr  = string_format("%s/repos/uavrt_detection/uavrt_detection %s",
+        commandStr  = formatString("%s/repos/uavrt_detection/uavrt_detection %s",
                         _homePath,
                         _detectorConfigFileName(i).c_str());
         logPath     = _detectorLogFileName(i);
@@ -162,8 +154,8 @@ bool CommandHandler::_handleStopDetection(void)
 
 bool CommandHandler::_handleAirspyMini(void)
 {
-    std::string commandStr = string_format("airspy_rx -r %s/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000", _homePath);
-    std::string logPath     = string_format("%s/airspy_mini.log", _homePath);
+    std::string commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000", _homePath);
+    std::string logPath     = formatString("%s/airspy_mini.log", _homePath);
 
     MonitoredProcess* airspyProcess = new MonitoredProcess(_mavlinkPassthrough, "mini-capture", commandStr.c_str(), logPath.c_str(), false /* restart */);
     airspyProcess->start();
@@ -226,7 +218,7 @@ bool CommandHandler::_writeDetectorConfig(int tagIndex)
         return false;
     }
 
-    double freqMHz = double(tagInfo.frequency_hz) / 100000.0;
+    double freqMHz = double(tagInfo.frequency_hz) / 1000000.0;
 
     fprintf(fp, "##################################################\n");
     fprintf(fp, "ID:\t%d\n", tagInfo.id);
@@ -258,10 +250,10 @@ bool CommandHandler::_writeDetectorConfig(int tagIndex)
 
 std::string CommandHandler::_detectorConfigFileName(int tagIndex)
 {
-    return string_format("%s/detector.%d.config", _homePath, _tagDatabase[tagIndex].id);
+    return formatString("%s/detector.%d.config", _homePath, _tagDatabase[tagIndex].id);
 }
 
 std::string CommandHandler::_detectorLogFileName(int tagIndex)
 {
-    return string_format("%s/detector.%d.log", _homePath, _tagDatabase[tagIndex].id);
+    return formatString("%s/detector.%d.log", _homePath, _tagDatabase[tagIndex].id);
 }

@@ -1,6 +1,7 @@
 #include "UDPPulseReceiver.h"
 #include "TunnelProtocol.h"
 #include "sendTunnelMessage.h"
+#include "formatString.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -100,15 +101,17 @@ void UDPPulseReceiver::_receive()
         int pulseCount = cBytesReceived / sizeof(UDPPulseInfo_T);
         int pulseIndex = 0;
 
+        std::cout << pulseCount << std::endl;
+
         while (pulseCount--) {
             UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
-            std::cout << std::dec << std::fixed <<
-                "Id: " << int(udpPulseInfo.id) <<
-                " Pulse Time: " << udpPulseInfo.timeSeconds <<
-                " SNR: " << udpPulseInfo.snr << 
-                " Conf: " << udpPulseInfo.confirmationStatus << 
-                std::endl;
+            std::string pulseStatus = formatString("Id: %d Time: %.1f SNR: %.2f Conf: %d",
+                                            int(udpPulseInfo.id),
+                                            udpPulseInfo.timeSeconds,
+                                            udpPulseInfo.snr,
+                                            int(udpPulseInfo.confirmationStatus));
+            std::cout << pulseStatus << std::endl;
 
             PulseInfo_t pulseInfo;
 

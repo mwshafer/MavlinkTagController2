@@ -52,7 +52,7 @@ void MonitoredProcess::_run(void)
 	    sendStatusText(_mavlinkPassthrough, statusStr.c_str());
 
 		try {
-	    	_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath);
+	    	_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath, bp::std_err > _logPath);
 		} catch(bp::process_error& e) {
 			std::cout << "MonitoredProcess::run boost::process:child threw process_error exception - " << e.what() << std::endl;
 			_terminated = true;

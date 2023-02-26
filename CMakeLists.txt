@@ -21,6 +21,7 @@ add_executable(MavlinkTagController
     sendTunnelMessage.cpp sendTunnelMessage.h
     sendStatusText.cpp sendStatusText.h
     MonitoredProcess.cpp MonitoredProcess.h
+    formatString.h
     TagDatabase.h
     uavrt_interfaces/include/uavrt_interfaces/TunnelProtocol.h
 )

@@ -68,13 +68,11 @@ int main(int argc, char** argv)
     }
 
     auto mavlinkPassthrough = MavlinkPassthrough{ qgcSystem };
-    auto udpPulseReceiver1  = UDPPulseReceiver{ std::string("127.0.0.1"), 30000, mavlinkPassthrough };
-    auto udpPulseReceiver2  = UDPPulseReceiver{ std::string("127.0.0.1"), 30001, mavlinkPassthrough };
+    auto udpPulseReceiver  = UDPPulseReceiver{ std::string("127.0.0.1"), 50000, mavlinkPassthrough };
     
     auto commandHandler = CommandHandler{ *qgcSystem, mavlinkPassthrough };
 
-    udpPulseReceiver1.start();
-    udpPulseReceiver2.start();
+    udpPulseReceiver.start();
 
     std::cout << "Ready" << std::endl;
     sendStatusText(mavlinkPassthrough, "MavlinkTagController Ready");
