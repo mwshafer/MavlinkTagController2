@@ -117,14 +117,45 @@ bool CommandHandler::_handleStartDetection(void)
         return false;
     }
 
-    std::string commandStr  = formatString("python3 %s/repos/UDPDecimate/UDPDecimate.py --pulse-freq %d",
-                                _homePath,
-                                _tagDatabase[0].frequency_hz);
-    std::string logPath     = formatString("%s/UDPDecimate.log",
-                                _homePath);
+    std::shared_ptr<bp::pipe> intermediatePipe;
 
-    MonitoredProcess* decimateProc = new MonitoredProcess(_mavlinkPassthrough, "UDPDecimate", commandStr.c_str(), logPath.c_str(), true /* restart */);
-    decimateProc->start();
+    std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
+                                (double)_tagDatabase[0].frequency_hz / 1000000.0);
+    std::string logPath     = formatString("%s/airspy_rx.log",
+                                _homePath);
+    MonitoredProcess* airspyProc = new MonitoredProcess(
+                                            _mavlinkPassthrough, 
+                                            "airspy_rx", 
+                                            commandStr.c_str(), 
+                                            logPath.c_str(), 
+                                            true /* restart */,
+                                            MonitoredProcess::OutputPipe,
+                                            intermediatePipe);
+    airspyProc->start();
+
+    logPath = formatString("%s/csdr-uavrt.log", _homePath);
+    MonitoredProcess* csdrProc = new MonitoredProcess(
+                                            _mavlinkPassthrough, 
+                                            "csdr-uavrt", 
+                                            "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
+                                            logPath.c_str(), 
+                                            true /* restart */,
+                                            MonitoredProcess::InputPipe,
+                                            intermediatePipe);
+    csdrProc->start();
+
+    std::shared_ptr<bp::pipe> dummyPipe;
+    commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize -1", _homePath);
+    logPath = formatString("%s/airspy_channelize.log", _homePath);
+    MonitoredProcess* channelizeProc = new MonitoredProcess(
+                                                _mavlinkPassthrough, 
+                                                "airspy_channelize", 
+                                                commandStr.c_str(), 
+                                                logPath.c_str(), 
+                                                true /* restart */,
+                                                MonitoredProcess::NoPipe,
+                                                dummyPipe);
+    channelizeProc->start();
 
     for (size_t i=0; i<_tagDatabase.size(); i++) {
 
@@ -134,7 +165,14 @@ bool CommandHandler::_handleStartDetection(void)
                         _detectorConfigFileName(i).c_str());
         logPath     = _detectorLogFileName(i);
 
-        MonitoredProcess* detectorProc1 = new MonitoredProcess(_mavlinkPassthrough, "uavrt_detection", commandStr.c_str(), logPath.c_str(), true /* restart */);
+        MonitoredProcess* detectorProc1 = new MonitoredProcess(
+                                                    _mavlinkPassthrough, 
+                                                    "uavrt_detection", 
+                                                    commandStr.c_str(), 
+                                                    logPath.c_str(), 
+                                                    true /* restart */,
+                                                    MonitoredProcess::NoPipe,
+                                                    dummyPipe);
         detectorProc1->start();
     }
 
@@ -154,10 +192,18 @@ bool CommandHandler::_handleStopDetection(void)
 
 bool CommandHandler::_handleAirspyMini(void)
 {
-    std::string commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000", _homePath);
-    std::string logPath     = formatString("%s/airspy_mini.log", _homePath);
+    std::shared_ptr<bp::pipe>   dummyPipe;
+    std::string                 commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000", _homePath);
+    std::string                 logPath    = formatString("%s/airspy-mini-capture.log", _homePath);
 
-    MonitoredProcess* airspyProcess = new MonitoredProcess(_mavlinkPassthrough, "mini-capture", commandStr.c_str(), logPath.c_str(), false /* restart */);
+    MonitoredProcess* airspyProcess = new MonitoredProcess(
+                                                _mavlinkPassthrough, 
+                                                "mini-capture", 
+                                                commandStr.c_str(), 
+                                                logPath.c_str(), 
+                                                false /* restart */,
+                                                MonitoredProcess::NoPipe,
+                                                dummyPipe);
     airspyProcess->start();
 
     return true;
@@ -228,7 +274,7 @@ bool CommandHandler::_writeDetectorConfig(int tagIndex)
     fprintf(fp, "portData:\t%d\n", 20000 + tagIndex);
     fprintf(fp, "ipCntrl:\t127.0.0.1\n");
     fprintf(fp, "portCntrl:\t30000\n");
-    fprintf(fp, "Fs:\t4000\n");
+    fprintf(fp, "Fs:\t3750\n");
     fprintf(fp, "tagFreqMHz:\t%f\n", freqMHz);
     fprintf(fp, "tp:\t0.015\n");
     fprintf(fp, "tip:\t%f\n", double(tagInfo.intra_pulse1_msecs) / 1000.0);

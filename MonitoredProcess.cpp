@@ -5,19 +5,29 @@
 #include <iostream>
 #include <thread>
 
-#include <boost/process/child.hpp>
-#include <boost/process/io.hpp>
+bp::pipe MonitoredProcess::staticPipe;
 
-namespace bp = boost::process;
-
-MonitoredProcess::MonitoredProcess(MavlinkPassthrough& mavlinkPassthrough, const char* name, const char* command, const char* logPath, bool restart)
+MonitoredProcess::MonitoredProcess(
+	MavlinkPassthrough& 		mavlinkPassthrough, 
+	const char* 				name, 
+	const char* 				command, 
+	const char* 				logPath, 
+	bool 						restart, 
+	IntermediatePipeType		intermediatePipeType,
+	std::shared_ptr<bp::pipe>& 	intermediatePipe)
 	: _mavlinkPassthrough 	(mavlinkPassthrough)
 	, _name					(name)
 	, _command				(command)
 	, _logPath				(logPath)
 	, _restart				(restart)
+	, _intermediatePipeType	(intermediatePipeType)
 {
-
+	if (_intermediatePipeType == InputPipe) {
+		intermediatePipe = intermediatePipe;
+	} else if (_intermediatePipeType == OutputPipe) {
+		_intermediatePipe = std::make_shared<bp::pipe>();
+		intermediatePipe = _intermediatePipe;
+	}
 }
 
 void MonitoredProcess::start(void)
@@ -48,11 +58,21 @@ void MonitoredProcess::_run(void)
 		std::string statusStr("Process start: ");
 		statusStr.append(_name);
 
-	    std::cout << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str() << std::endl;
+	    std::cout << statusStr << " '" << _command.c_str() << "' >" << _logPath.c_str() << std::endl;
 	    sendStatusText(_mavlinkPassthrough, statusStr.c_str());
 
 		try {
-	    	_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath, bp::std_err > _logPath);
+			switch (_intermediatePipeType ) {
+				case NoPipe:
+			    	_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath, bp::std_err > _logPath);
+					break;
+				case InputPipe:
+			    	_childProcess = new bp::child(_command.c_str(), bp::std_in < staticPipe, bp::std_out > _logPath, bp::std_err > _logPath);
+					break;
+				case OutputPipe:
+			    	_childProcess = new bp::child(_command.c_str(), bp::std_out > staticPipe, bp::std_err > _logPath);
+					break;
+			}
 		} catch(bp::process_error& e) {
 			std::cout << "MonitoredProcess::run boost::process:child threw process_error exception - " << e.what() << std::endl;
 			_terminated = true;
