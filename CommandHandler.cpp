@@ -35,7 +35,7 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
 {
     AckInfo_t           ackInfo;
 
-    std::cerr << "_sendCommandAck command:result " << command << " " << result << std::endl;
+    std::cerr << "_sendCommandAck command:result " << _tunnelCommandIdToString(command) << " " << _tunnelCommandResultToString(result) << std::endl;
 
     ackInfo.header.command  = COMMAND_ID_ACK;
     ackInfo.command         = command;
@@ -302,4 +302,57 @@ std::string CommandHandler::_detectorConfigFileName(int tagIndex)
 std::string CommandHandler::_detectorLogFileName(int tagIndex)
 {
     return formatString("%s/detector.%d.log", _homePath, _tagDatabase[tagIndex].id);
+}
+
+std::string CommandHandler::_tunnelCommandIdToString(uint32_t command)
+{
+    std::string commandStr;
+
+    switch (command) {
+    case COMMAND_ID_ACK:
+        commandStr = "ACK";
+        break;
+    case COMMAND_ID_START_TAGS:
+        commandStr = "START_TAGS";
+        break;
+    case COMMAND_ID_END_TAGS:
+        commandStr = "END_TAGS";
+        break;
+    case COMMAND_ID_TAG:
+        commandStr = "TAG";
+        break;
+    case COMMAND_ID_START_DETECTION:
+        commandStr = "START_DETECTION";
+        break;
+    case COMMAND_ID_STOP_DETECTION:
+        commandStr = "STOP_DETECTION";
+        break;
+    case COMMAND_ID_PULSE:
+        commandStr = "PULSE";
+        break;
+    case COMMAND_ID_AIRSPY_HF:
+        commandStr = "AIRSPY_HF";
+        break;
+    case COMMAND_ID_AIRSPY_MINI:
+        commandStr = "AIRSPY_MINI";
+        break;
+    }
+
+    return commandStr;
+}
+
+std::string CommandHandler::_tunnelCommandResultToString(uint32_t result)
+{
+    std::string resultStr;
+
+    switch (result) {
+    case COMMAND_RESULT_SUCCESS:
+        resultStr = "SUCCESS";
+        break;
+    case COMMAND_RESULT_FAILURE:
+        resultStr = "FAILURE";
+        break;
+    }
+
+    return resultStr;
 }

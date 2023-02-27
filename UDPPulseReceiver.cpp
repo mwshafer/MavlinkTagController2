@@ -107,8 +107,6 @@ void UDPPulseReceiver::_receive()
         int pulseCount = cBytesReceived / sizeof(UDPPulseInfo_T);
         int pulseIndex = 0;
 
-        std::cout << pulseCount << std::endl;
-
         while (pulseCount--) {
             UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
@@ -138,7 +136,7 @@ void UDPPulseReceiver::_receive()
             sendTunnelMessage(_mavlinkPassthrough, &pulseInfo, sizeof(pulseInfo));
 
             using namespace std::chrono_literals;
-            std::this_thread::sleep_for(10ms);
+            std::this_thread::sleep_for(100ms);
         }
     }
 }

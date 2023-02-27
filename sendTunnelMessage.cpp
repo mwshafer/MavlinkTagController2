@@ -1,6 +1,7 @@
 #include "sendTunnelMessage.h"
 
 #include <mutex>
+#include <iostream>
 
 void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPayload, size_t tunnelPayloadSize)
 {
@@ -25,7 +26,10 @@ void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPaylo
         mavlinkPassthrough.get_our_compid(),
         &message,
         &tunnel);
-    mavlinkPassthrough.send_message(message);  
+    auto result = mavlinkPassthrough.send_message(message);
+    if (result != MavlinkPassthrough::Result::Success) {
+        std::cout << "sendTunnelMessage failed " << result << std::endl;
+    }
 
     sendMutex.unlock();      	
 }
