@@ -9,18 +9,16 @@
 bp::pipe MonitoredProcess::staticPipe;
 
 MonitoredProcess::MonitoredProcess(
-	MavlinkPassthrough& 		mavlinkPassthrough, 
-	const char* 				name, 
-	const char* 				command, 
-	const char* 				logPath, 
-	bool 						restart, 
-	IntermediatePipeType		intermediatePipeType,
-	std::shared_ptr<bp::pipe>& 	intermediatePipe)
+		MavlinkPassthrough& 		mavlinkPassthrough, 
+		const char* 				name, 
+		const char* 				command, 
+		const char* 				logPath, 
+		IntermediatePipeType		intermediatePipeType,
+		std::shared_ptr<bp::pipe>& 	intermediatePipe)
 	: _mavlinkPassthrough 	(mavlinkPassthrough)
 	, _name					(name)
 	, _command				(command)
 	, _logPath				(logPath)
-	, _restart				(restart)
 	, _intermediatePipeType	(intermediatePipeType)
 {
 	if (_intermediatePipeType == InputPipe) {
@@ -52,70 +50,60 @@ void MonitoredProcess::stop(void)
 
 void MonitoredProcess::_run(void)
 {
-	bool startProcess = true;
+	std::string statusStr("Process start: ");
+	statusStr.append(_name);
 
-	while (startProcess) {
-		std::string statusStr("Process start: ");
-		statusStr.append(_name);
+	logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
+	sendStatusText(_mavlinkPassthrough, statusStr.c_str());
 
-	    logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
-	    sendStatusText(_mavlinkPassthrough, statusStr.c_str());
-
-		try {
-			switch (_intermediatePipeType ) {
-				case NoPipe:
-			    	_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath, bp::std_err > _logPath);
-					break;
-				case InputPipe:
-			    	_childProcess = new bp::child(_command.c_str(), bp::std_in < staticPipe, bp::std_out > _logPath, bp::std_err > _logPath);
-					break;
-				case OutputPipe:
-			    	_childProcess = new bp::child(_command.c_str(), bp::std_out > staticPipe, bp::std_err > _logPath);
-					break;
-			}
-		} catch(bp::process_error& e) {
-			logError() << "MonitoredProcess::run boost::process:child threw process_error exception -" << e.what();
-			_terminated = true;
+	try {
+		switch (_intermediatePipeType ) {
+			case NoPipe:
+				_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath, bp::std_err > _logPath);
+				break;
+			case InputPipe:
+				_childProcess = new bp::child(_command.c_str(), bp::std_in < staticPipe, bp::std_out > _logPath, bp::std_err > _logPath);
+				break;
+			case OutputPipe:
+				_childProcess = new bp::child(_command.c_str(), bp::std_out > staticPipe, bp::std_err > _logPath);
+				break;
+		}
+	} catch(bp::process_error& e) {
+		logError() << "MonitoredProcess::run boost::process:child threw process_error exception -" << e.what();
+		_terminated = true;
 //		} catch(...) {
 //			std::cout << "MonitoredProcess::run boost::process:child threw unknown exception" << std::endl;
 //			_terminated = true;
-		}
+	}
 
-		int result = 255;
+	int result = 255;
 
-		if (_childProcess) {
-	    	_childProcess->wait();
-	    	result = _childProcess->exit_code();
-		}
+	if (_childProcess) {
+		_childProcess->wait();
+		result = _childProcess->exit_code();
+	}
 
-	   	if (result == 0) {
-	   		statusStr = "Process end: ";
-	   	} else if (_terminated) {
-	   		statusStr = "Process terminated: ";
-			_restart = false;
-	   	} else {
-	   		char numStr[21];
+	if (result == 0) {
+		statusStr = "Process end: ";
+	} else if (_terminated) {
+		statusStr = "Process terminated: ";
+	} else {
+		char numStr[21];
 
-	   		statusStr = "Process fail: ";
-	   		sprintf(numStr, "%d", result);
-	   		statusStr.append(numStr);
-	   		statusStr.append(" ");
-	   	}
-	   	statusStr.append(_name);
+		statusStr = "Process fail: ";
+		sprintf(numStr, "%d", result);
+		statusStr.append(numStr);
+		statusStr.append(" ");
+	}
+	statusStr.append(_name);
 
-	   	delete _childProcess;
-	   	_childProcess = NULL;
+	delete _childProcess;
+	_childProcess = NULL;
 
-	   	if (_restart) {
-	   		statusStr.append("- Restarting");
-	   	}
-	   	_terminated = false;
+	_terminated = false;
 
-	   	logError() << statusStr;
-	    sendStatusText(_mavlinkPassthrough, statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
-
-	    startProcess = _restart;
-    }
+	logError() << statusStr;
+	sendStatusText(_mavlinkPassthrough, statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
 
     delete this;   
 }

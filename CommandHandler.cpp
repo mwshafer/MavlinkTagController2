@@ -128,7 +128,6 @@ bool CommandHandler::_handleStartDetection(void)
                                             "airspy_rx", 
                                             commandStr.c_str(), 
                                             logPath.c_str(), 
-                                            true /* restart */,
                                             MonitoredProcess::OutputPipe,
                                             intermediatePipe);
     airspyProc->start();
@@ -139,7 +138,6 @@ bool CommandHandler::_handleStartDetection(void)
                                             "csdr-uavrt", 
                                             "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
                                             logPath.c_str(), 
-                                            true /* restart */,
                                             MonitoredProcess::InputPipe,
                                             intermediatePipe);
     csdrProc->start();
@@ -152,7 +150,6 @@ bool CommandHandler::_handleStartDetection(void)
                                                 "airspy_channelize", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
-                                                true /* restart */,
                                                 MonitoredProcess::NoPipe,
                                                 dummyPipe);
     channelizeProc->start();
@@ -170,7 +167,6 @@ bool CommandHandler::_handleStartDetection(void)
                                                     "uavrt_detection", 
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 
-                                                    true /* restart */,
                                                     MonitoredProcess::NoPipe,
                                                     dummyPipe);
         detectorProc1->start();
@@ -201,7 +197,6 @@ bool CommandHandler::_handleAirspyMini(void)
                                                 "mini-capture", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
-                                                false /* restart */,
                                                 MonitoredProcess::NoPipe,
                                                 dummyPipe);
     airspyProcess->start();

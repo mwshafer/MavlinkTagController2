@@ -27,7 +27,6 @@ public:
 		const char* 				name, 
 		const char* 				command, 
 		const char* 				logPath, 
-		bool 						restart, 
 		IntermediatePipeType		intermediatePipeType,
 		std::shared_ptr<bp::pipe>& 	intermediatePipe);
 
@@ -41,7 +40,6 @@ private:
 	std::string					_name;
 	std::string 				_command;
 	std::string					_logPath;
-	bool						_restart 		= false;
 	std::thread*				_thread			= NULL;
 	boost::process::child*		_childProcess 	= NULL;
 	bool						_terminated		= false;
