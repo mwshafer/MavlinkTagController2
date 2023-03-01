@@ -49,13 +49,18 @@ bool CommandHandler::_handleStartTags(void)
 {
     logDebug() << "_handleStartTags _receivingTags:_detectorsRunnings" << _receivingTags << _detectorsRunning;
 
-    if (!_receivingTags && !_detectorsRunning) {
-        _tagDatabase.clear();
-        _receivingTags = true;
-        return true;
-    } else {
+    if (_detectorsRunning) {
         return false;
     }
+
+    if (_receivingTags) {
+        sendStatusText(_mavlinkPassthrough, "Cancelling previous Start Tags sequence", MAV_SEVERITY_ALERT);
+    }
+
+    _tagDatabase.clear();
+    _receivingTags = true;
+
+    return true;
 }
 
 bool CommandHandler::_handleTag(const mavlink_tunnel_t& tunnel)
