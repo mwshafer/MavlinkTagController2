@@ -1,4 +1,5 @@
 #include "sendTunnelMessage.h"
+#include "log.h"
 
 #include <mutex>
 #include <iostream>
@@ -28,7 +29,7 @@ void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPaylo
         &tunnel);
     auto result = mavlinkPassthrough.send_message(message);
     if (result != MavlinkPassthrough::Result::Success) {
-        std::cout << "sendTunnelMessage failed " << result << std::endl;
+        logError() << "sendTunnelMessage failed" << result;
     }
 
     sendMutex.unlock();      	

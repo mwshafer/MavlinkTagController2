@@ -2,6 +2,7 @@
 #include "TunnelProtocol.h"
 #include "sendTunnelMessage.h"
 #include "formatString.h"
+#include "log.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -48,7 +49,7 @@ bool UDPPulseReceiver::_setupPort(void)
     _fdSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
     if (_fdSocket < 0) {
-        std::cout << "socket error" << strerror(errno) << "\n";
+        logError() << "socket error" << strerror(errno);
         return false;
     }
 
@@ -58,11 +59,11 @@ bool UDPPulseReceiver::_setupPort(void)
     addr.sin_port           = htons(_localPort);
 
     if (bind(_fdSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        std::cout << "bind error: " << strerror(errno) << std::endl;
+        logError() << "bind error:" << strerror(errno);
         return false;
     }
 
-    std::cout << "UDPPulseReceiver::_setupPort " << _localIp << " port: " << _localPort << std::endl;
+    logDebug() << "UDPPulseReceiver::_setupPort" << _localIp << "port:" << _localPort;
 
     return true;
 }
@@ -100,7 +101,7 @@ void UDPPulseReceiver::_receive()
         if (cBytesReceived < 0) {
             // This happens on destruction when close(_fdSocket) is called,
             // therefore be quiet.
-            std::cout << "recvfrom error: " << strerror(errno) << std::endl;
+            logDebug() << "recvfrom error:" << strerror(errno);
             return;
         }
 
@@ -115,7 +116,7 @@ void UDPPulseReceiver::_receive()
                                             udpPulseInfo.start_time_seconds,
                                             udpPulseInfo.snr,
                                             (uint)udpPulseInfo.confirmed_status);
-            std::cout << pulseStatus << std::endl;
+            logInfo() << pulseStatus;
 
             PulseInfo_t pulseInfo;
 

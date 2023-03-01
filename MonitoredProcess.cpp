@@ -1,5 +1,6 @@
 #include "MonitoredProcess.h"
 #include "sendStatusText.h"
+#include "log.h"
 
 #include <string>
 #include <iostream>
@@ -39,10 +40,9 @@ void MonitoredProcess::start(void)
 
 void MonitoredProcess::stop(void)
 {
-	std::cout << "MonitoredProcess::Stop _childProcess:_childProcess.running " 
-		<< _childProcess << " "
-		<< (_childProcess ? _childProcess->running() : false)
-		<< std::endl;
+	logDebug() << "MonitoredProcess::stop _childProcess:_childProcess.running" 
+		<< _childProcess
+		<< (_childProcess ? _childProcess->running() : false);
 
 	if (_childProcess) {
 		_terminated = true;
@@ -58,7 +58,7 @@ void MonitoredProcess::_run(void)
 		std::string statusStr("Process start: ");
 		statusStr.append(_name);
 
-	    std::cout << statusStr << " '" << _command.c_str() << "' >" << _logPath.c_str() << std::endl;
+	    logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
 	    sendStatusText(_mavlinkPassthrough, statusStr.c_str());
 
 		try {
@@ -74,7 +74,7 @@ void MonitoredProcess::_run(void)
 					break;
 			}
 		} catch(bp::process_error& e) {
-			std::cout << "MonitoredProcess::run boost::process:child threw process_error exception - " << e.what() << std::endl;
+			logError() << "MonitoredProcess::run boost::process:child threw process_error exception -" << e.what();
 			_terminated = true;
 //		} catch(...) {
 //			std::cout << "MonitoredProcess::run boost::process:child threw unknown exception" << std::endl;
@@ -111,7 +111,7 @@ void MonitoredProcess::_run(void)
 	   	}
 	   	_terminated = false;
 
-	   	std::cout << statusStr << std::endl;
+	   	logError() << statusStr;
 	    sendStatusText(_mavlinkPassthrough, statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
 
 	    startProcess = _restart;

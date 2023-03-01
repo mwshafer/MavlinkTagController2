@@ -17,6 +17,7 @@
 #include "sendStatusText.h"
 #include "MonitoredProcess.h"
 #include "formatString.h"
+#include "log.h"
 
 using namespace mavsdk;
 using namespace TunnelProtocol;
@@ -35,7 +36,7 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
 {
     AckInfo_t           ackInfo;
 
-    std::cerr << "_sendCommandAck command:result " << _tunnelCommandIdToString(command) << " " << _tunnelCommandResultToString(result) << std::endl;
+    logDebug() << "_sendCommandAck command:result" << _tunnelCommandIdToString(command) << _tunnelCommandResultToString(result);
 
     ackInfo.header.command  = COMMAND_ID_ACK;
     ackInfo.command         = command;
@@ -46,7 +47,7 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
 
 bool CommandHandler::_handleStartTags(void)
 {
-    std::cout << "_handleStartTags _receivingTags:_detectorsRunnings " << _receivingTags << " " << _detectorsRunning << std::endl;
+    logDebug() << "_handleStartTags _receivingTags:_detectorsRunnings" << _receivingTags << _detectorsRunning;
 
     if (!_receivingTags && !_detectorsRunning) {
         _tagDatabase.clear();
@@ -62,27 +63,26 @@ bool CommandHandler::_handleTag(const mavlink_tunnel_t& tunnel)
     TagInfo_t tagInfo;
 
     if (tunnel.payload_length != sizeof(tagInfo)) {
-        std::cout << "CommandHandler::_handleTagCommand ERROR - Payload length incorrect expected:actual " << sizeof(tagInfo) << " " << tunnel.payload_length;
+        logError() << "CommandHandler::_handleTagCommand ERROR - Payload length incorrect expected:actual" << sizeof(tagInfo) << tunnel.payload_length;
         return false;
     }
 
     memcpy(&tagInfo, tunnel.payload, sizeof(tagInfo));
 
     if (tagInfo.id < 2) {
-        std::cout << "CommandHandler::_handleTagCommand: invalid tag id of 0/1" << std::endl;
+        logError() << "CommandHandler::_handleTagCommand: invalid tag id of 0/1";
         return false;
     }
 
     if (_tagDatabase.size() == 2) {
-        std::cout << "CommandHandler::_handleTagCommand: Only two tags supported" << std::endl;
+        logError() << "CommandHandler::_handleTagCommand: Only two tags supported";
         return false;
     } 
 
-    std::cout << "CommandHandler::handleTagCommand: id:freq:intra_pulse1_msecs " 
-                << tagInfo.id << " " 
-                << tagInfo.frequency_hz << " "
-                << tagInfo.intra_pulse1_msecs << " "
-                << std::endl;
+    logDebug() << "CommandHandler::handleTagCommand: id:freq:intra_pulse1_msecs " 
+                << tagInfo.id
+                << tagInfo.frequency_hz
+                << tagInfo.intra_pulse1_msecs;
 
     _tagDatabase.push_back(tagInfo);
 
@@ -91,7 +91,7 @@ bool CommandHandler::_handleTag(const mavlink_tunnel_t& tunnel)
 
 bool CommandHandler::_handleEndTags(void)
 {
-    std::cout << "_handleEndTags _receivingTags " << _receivingTags << std::endl;
+    logDebug() << "_handleEndTags _receivingTags" << _receivingTags;
 
     if (_receivingTags) {
         _receivingTags = false;
@@ -108,10 +108,10 @@ bool CommandHandler::_handleEndTags(void)
 
 bool CommandHandler::_handleStartDetection(void)
 {
-    std::cout << "_handleStartDetection _receivingTags:_detectorsRunnings:_tagDatabase.size " 
-        << _receivingTags << " " 
-        << _detectorsRunning << " " <<
-        _tagDatabase.size() << std::endl;
+    logDebug() << "_handleStartDetection _receivingTags:_detectorsRunnings:_tagDatabase.size" 
+        << _receivingTags
+        << _detectorsRunning
+        << _tagDatabase.size();
 
     if (_receivingTags || _detectorsRunning || _tagDatabase.size() == 0) {
         return false;
@@ -183,7 +183,7 @@ bool CommandHandler::_handleStartDetection(void)
 
 bool CommandHandler::_handleStopDetection(void)
 {
-    std::cout << "_handleStopDetection _detectorsRunnings " << _detectorsRunning << std::endl;
+    logDebug() << "_handleStopDetection _detectorsRunnings" << _detectorsRunning;
 
     _sendCommandAck(COMMAND_ID_STOP_DETECTION, COMMAND_RESULT_SUCCESS);
 
@@ -218,7 +218,7 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     HeaderInfo_t headerInfo;
 
     if (tunnel.payload_length < sizeof(headerInfo)) {
-        std::cout << "CommandHandler::_handleTunnelMessage payload too small" << std::endl;
+        logError() << "CommandHandler::_handleTunnelMessage payload too small";
         return;
     }
 
@@ -256,11 +256,11 @@ bool CommandHandler::_writeDetectorConfig(int tagIndex)
     TagInfo_t&  tagInfo     = _tagDatabase[tagIndex];
     std::string configPath  = _detectorConfigFileName(tagIndex);
 
-    std::cout << "_writeDetectorConfig " << configPath << std::endl;
+    logDebug() << "_writeDetectorConfig" << configPath;
 
     FILE* fp = fopen(configPath.c_str(), "w");
     if (fp == NULL) {
-        std::cout << "_writeDetectorConfig fopen failed - " << strerror(errno) << std::endl;
+        logError() << "_writeDetectorConfig fopen failed -" << strerror(errno);
         return false;
     }
 

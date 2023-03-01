@@ -3,6 +3,7 @@
 #include "TunnelProtocol.h"
 #include "sendTunnelMessage.h"
 #include "sendStatusText.h"
+#include "log.h"
 
 #include <chrono>
 #include <cstdint>
@@ -25,14 +26,14 @@ int main(int argc, char** argv)
     mavsdk.set_configuration(Mavsdk::Configuration(1, MAV_COMP_ID_ONBOARD_COMPUTER, true));
 
     if (argc != 2) {
-        std::cout << "Connection url must be specified on command line" << std::endl;
+        logError() << "Connection url must be specified on command line";
         return 1;
     }
 
     ConnectionResult connection_result;
     connection_result = mavsdk.add_any_connection(argv[1]);
     if (connection_result != ConnectionResult::Success) {
-        std::cout << "Connection failed for " << argv[1] << ": " << connection_result << std::endl;
+        logError() << "Connection failed for" << argv[1] << ":" << connection_result;
         return 1;
     }
 
@@ -44,7 +45,7 @@ int main(int argc, char** argv)
     std::shared_ptr<System> autopilotSystem;
     std::shared_ptr<System> qgcSystem;
 
-    std::cout << "Waiting to discover Autopilot and QGC" << std::endl;
+    logInfo() << "Waiting to discover Autopilot and QGC";
     while (!foundAutopilot || !foundQGC) {
         std::vector< std::shared_ptr< System > > systems = mavsdk.systems();
         for (size_t i=0; i<systems.size(); i++) {
@@ -53,11 +54,11 @@ int main(int argc, char** argv)
             for (size_t i=0; i < compIds.size(); i++) {
                 auto compId = compIds[i];
                 if (!foundAutopilot && compId == MAV_COMP_ID_AUTOPILOT1) {
-                    std::cout << "Discovered Autopilot" << std::endl;
+                    logInfo() << "Discovered Autopilot";
                     autopilotSystem = system;
                     foundAutopilot  = true;
                 } else if (!foundQGC && compId == MAV_COMP_ID_MISSIONPLANNER && system->get_system_id() == 255) {
-                    std::cout << "Discovered QGC" << std::endl;
+                    logInfo() << "Discovered QGC";
                     qgcSystem = system;
                     foundQGC = true;
                 } 
@@ -74,7 +75,7 @@ int main(int argc, char** argv)
 
     udpPulseReceiver.start();
 
-    std::cout << "Ready" << std::endl;
+    logInfo() << "Ready";
     sendStatusText(mavlinkPassthrough, "MavlinkTagController Ready");
 
     while (true) {
