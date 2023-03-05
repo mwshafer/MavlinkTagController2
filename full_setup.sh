@@ -58,10 +58,3 @@ fi
 cd ~/repos/uavrt_detection
 git pull origin don-codegen
 make -f matlab-coder-utils/Makefile PRODUCT_NAME=uavrt_detection -j4
-
-echo "*** Clone UAV-RT-TagTracker"
-cd ~/repos
-if [ ! -d UAV-RT-TagTracker ]; then
-	git clone --recursive git@github.com:DonLakeFlyer/UAV-RT-TagTracker.git
-fi
-
