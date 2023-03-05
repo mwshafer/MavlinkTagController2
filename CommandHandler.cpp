@@ -102,25 +102,40 @@ bool CommandHandler::_handleEndTags(void)
 
     const uint32_t          sampleRateHz    = 375000;
     const uint32_t          nChannels       = 100;
-    std::vector<uint32_t>   freqListHz;
-    uint32_t                bestCenterHz;
-    std::vector<uint32_t>   channelBins;
 
-    if (!_tagDatabase.channelizerTuner(sampleRateHz, nChannels, bestCenterHz)) {
+    if (!_tagDatabase.channelizerTuner(sampleRateHz, nChannels, _radioCenterFreqHz)) {
         logError() << "CommandHandler::_handleEndTags: channelizerTuner failed";
         sendStatusText(_mavlinkPassthrough, "Channelizer Tuner failed", MAV_SEVERITY_ALERT);
         return false;
     }
-    logDebug() << "CommandHandler::_handleEndTags: bestCenterHz" << bestCenterHz << "channelBins" << channelBins;
+    logDebug() << "CommandHandler::_handleEndTags: _radioCenterFreqHz" << _radioCenterFreqHz;
 
-    if (!_writeDetectorConfig(0) || !_writeDetectorConfig(1)) {
+    if (!_tagDatabase.writeDetectorConfigs()) {
+        logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
+        sendStatusText(_mavlinkPassthrough, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
         return false;
     }
 
-    remove(_detectorLogFileName(0).c_str());
-    remove(_detectorLogFileName(1).c_str());
-
     return true;
+}
+
+void CommandHandler::_startDetector(const ExtTagInfo_t& extTagInfo, bool secondaryChannel)
+{
+    // FIXME: We leak MonitoredProcess objects here
+    std::shared_ptr<bp::pipe> dummyPipe;
+    std::string commandStr  = formatString("%s/repos/uavrt_detection/uavrt_detection %s",
+                                _homePath,
+                                _tagDatabase.detectorConfigFileName(extTagInfo, secondaryChannel).c_str());
+    std::string logPath     = _detectorLogFileName(extTagInfo, secondaryChannel);
+
+    MonitoredProcess* detectorProc = new MonitoredProcess(
+                                                _mavlinkPassthrough, 
+                                                "uavrt_detection", 
+                                                commandStr.c_str(), 
+                                                logPath.c_str(), 
+                                                MonitoredProcess::NoPipe,
+                                                dummyPipe);
+    detectorProc->start();  
 }
 
 bool CommandHandler::_handleStartDetection(void)
@@ -137,7 +152,7 @@ bool CommandHandler::_handleStartDetection(void)
     std::shared_ptr<bp::pipe> intermediatePipe;
 
     std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
-                                (double)_tagDatabase[0].frequency_hz / 1000000.0);
+                                (double)_radioCenterFreqHz / 1000000.0);
     std::string logPath     = formatString("%s/airspy_rx.log",
                                 _homePath);
     MonitoredProcess* airspyProc = new MonitoredProcess(
@@ -160,7 +175,7 @@ bool CommandHandler::_handleStartDetection(void)
     csdrProc->start();
 
     std::shared_ptr<bp::pipe> dummyPipe;
-    commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize -1", _homePath);
+    commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, "-1" /*_tagDatabase.channelizerCommandLine().c_str()*/);
     logPath = formatString("%s/airspy_channelize.log", _homePath);
     MonitoredProcess* channelizeProc = new MonitoredProcess(
                                                 _mavlinkPassthrough, 
@@ -171,22 +186,11 @@ bool CommandHandler::_handleStartDetection(void)
                                                 dummyPipe);
     channelizeProc->start();
 
-    for (size_t i=0; i<_tagDatabase.size(); i++) {
-
-        // FIXME: We leak MonitoredProcess objects here
-        commandStr  = formatString("%s/repos/uavrt_detection/uavrt_detection %s",
-                        _homePath,
-                        _detectorConfigFileName(i).c_str());
-        logPath     = _detectorLogFileName(i);
-
-        MonitoredProcess* detectorProc1 = new MonitoredProcess(
-                                                    _mavlinkPassthrough, 
-                                                    "uavrt_detection", 
-                                                    commandStr.c_str(), 
-                                                    logPath.c_str(), 
-                                                    MonitoredProcess::NoPipe,
-                                                    dummyPipe);
-        detectorProc1->start();
+    for (const ExtTagInfo_t& extTagInfo: _tagDatabase) {
+        _startDetector(extTagInfo, false /* secondaryChannel */);
+        if (extTagInfo.tagInfo.intra_pulse2_msecs != 0) {
+            _startDetector(extTagInfo, true /* secondaryChannel */);
+        }
     }
 
     _detectorsRunning = true;
@@ -263,57 +267,9 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE);
 }
 
-bool CommandHandler::_writeDetectorConfig(int tagIndex)
+std::string CommandHandler::_detectorLogFileName(const ExtTagInfo_t& extTagInfo, bool secondaryChannel)
 {
-    TagInfo_t&  tagInfo     = _tagDatabase[tagIndex];
-    std::string configPath  = _detectorConfigFileName(tagIndex);
-
-    logDebug() << "_writeDetectorConfig" << configPath;
-
-    FILE* fp = fopen(configPath.c_str(), "w");
-    if (fp == NULL) {
-        logError() << "_writeDetectorConfig fopen failed -" << strerror(errno);
-        return false;
-    }
-
-    double freqMHz = double(tagInfo.frequency_hz) / 1000000.0;
-
-    fprintf(fp, "##################################################\n");
-    fprintf(fp, "ID:\t%d\n", tagInfo.id);
-    fprintf(fp, "channelCenterFreqMHz:\t%f\n", freqMHz);
-    fprintf(fp, "timeStamp:\t1646403180.469\n");
-    fprintf(fp, "ipData:\t127.0.0.1\n");
-    fprintf(fp, "portData:\t%d\n", 20000 + tagIndex);
-    fprintf(fp, "ipCntrl:\t127.0.0.1\n");
-    fprintf(fp, "portCntrl:\t30000\n");
-    fprintf(fp, "Fs:\t3750\n");
-    fprintf(fp, "tagFreqMHz:\t%f\n", freqMHz);
-    fprintf(fp, "tp:\t0.015\n");
-    fprintf(fp, "tip:\t%f\n", double(tagInfo.intra_pulse1_msecs) / 1000.0);
-    fprintf(fp, "tipu:\t0.06000\n");
-    fprintf(fp, "tipj:\t0.020000\n");
-    fprintf(fp, "K:\t3\n");
-    fprintf(fp, "opMode:\tfreqSearchHardLock\n");
-    fprintf(fp, "excldFreqs:\t[Inf, -Inf]\n");
-    fprintf(fp, "falseAlarmProb:\t0.05\n");
-    fprintf(fp, "dataRecordPath:\t%s/data_record.bin\n", _homePath);
-    fprintf(fp, "processedOuputPath:\t%s\n", _homePath);
-    fprintf(fp, "ros2enable:\tfalse\n");
-    fprintf(fp, "startInRunState:\ttrue\n");
-
-    fclose(fp);
-
-    return true;
-}
-
-std::string CommandHandler::_detectorConfigFileName(int tagIndex)
-{
-    return formatString("%s/detector.%d.config", _homePath, _tagDatabase[tagIndex].id);
-}
-
-std::string CommandHandler::_detectorLogFileName(int tagIndex)
-{
-    return formatString("%s/detector.%d.log", _homePath, _tagDatabase[tagIndex].id);
+    return formatString("%s/detector.%d.log", _homePath, extTagInfo.tagInfo.id + (secondaryChannel ? 1 : 0));
 }
 
 std::string CommandHandler::_tunnelCommandIdToString(uint32_t command)

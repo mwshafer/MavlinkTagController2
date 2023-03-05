@@ -21,10 +21,9 @@ private:
     bool _handleStopDetection   (void);
     bool _handleAirspyMini      (void);
     void _handleTunnelMessage   (const mavlink_message_t& message);
-    bool _writeDetectorConfig   (int tagIndex);
+    void _startDetector         (const ExtTagInfo_t& extTagInfo, bool secondaryChannel);
 
-    std::string _detectorConfigFileName     (int tagIndex);
-    std::string _detectorLogFileName        (int tagIndex);
+    std::string _detectorLogFileName        (const ExtTagInfo_t& extTagInfo, bool secondaryChannel);
     std::string _tunnelCommandIdToString    (uint32_t command);
     std::string _tunnelCommandResultToString(uint32_t result);
 
@@ -35,4 +34,5 @@ private:
     bool                        _receivingTags      = false;
     bool                        _detectorsRunning   = false;
     char*                       _homePath           = NULL;
+    uint32_t                    _radioCenterFreqHz  = 0;
 };

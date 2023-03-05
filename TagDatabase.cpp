@@ -1,9 +1,20 @@
 #include "TagDatabase.h"
 #include "log.h"
+#include "formatString.h"
 
 #include <algorithm>
 #include <numeric>
 #include <functional>
+#include <errno.h>
+#include <cstring>
+
+void TagDatabase::addTag(const TunnelProtocol::TagInfo_t& tagInfo)
+{
+    ExtTagInfo_t extTagInfo;
+    extTagInfo.tagInfo = tagInfo;
+    extTagInfo.oneBasedChannelBin = 0;
+    push_back(extTagInfo);
+}
 
 bool TagDatabase::channelizerTuner(
         const uint32_t              sampleRateHz, 
@@ -157,4 +168,81 @@ bool TagDatabase::channelizerTuner(
     }
 
     return bestTestCenterHz != 0;
+}
+
+std::string TagDatabase::detectorConfigFileName(const ExtTagInfo_t& extTagInfo, bool secondaryChannel) const
+{
+    return formatString("%s/detector.%d.config", getenv("HOME"), extTagInfo.tagInfo.id + (secondaryChannel ? 1 : 0));
+}
+
+bool TagDatabase::_writeDetectorConfig(const ExtTagInfo_t& extTagInfo, bool secondaryChannel) const
+{
+    const char* homePath = getenv("HOME");
+
+    std::string configPath  = detectorConfigFileName(extTagInfo, secondaryChannel);
+
+    logDebug() << "_writeDetectorConfig" << configPath;
+
+    FILE* fp = fopen(configPath.c_str(), "w");
+    if (fp == NULL) {
+        logError() << "_writeDetectorConfig fopen failed -" << strerror(errno);
+        return false;
+    }
+
+    int     secondaryChannelIncrement   = secondaryChannel ? 1 : 0;
+    auto    tagId                       = extTagInfo.tagInfo.id + secondaryChannelIncrement;
+    double  freqMHz                     = double(extTagInfo.tagInfo.frequency_hz) / 1000000.0;
+    auto    tip_msecs                   = secondaryChannel ? extTagInfo.tagInfo.intra_pulse2_msecs : extTagInfo.tagInfo.intra_pulse1_msecs;
+    //auto    portData                    = 20000 + ((extTagInfo.oneBasedChannelBin - 1) * 2) + secondaryChannelIncrement;
+    auto    portData                    = 20000 + secondaryChannelIncrement;
+
+    fprintf(fp, "##################################################\n");
+    fprintf(fp, "ID:\t%d\n",                                tagId);
+    fprintf(fp, "channelCenterFreqMHz:\t%f\n",              freqMHz);
+    fprintf(fp, "ipData:\t127.0.0.1\n");
+    fprintf(fp, "portData:\t%d\n",                          portData);
+    fprintf(fp, "Fs:\t3750\n");
+    fprintf(fp, "tagFreqMHz:\t%f\n",                        freqMHz);
+    fprintf(fp, "tp:\t0.015\n");
+    fprintf(fp, "tip:\t%f\n",                               double(tip_msecs) / 1000.0);
+    fprintf(fp, "tipu:\t0.06000\n");
+    fprintf(fp, "tipj:\t0.020000\n");
+    fprintf(fp, "K:\t3\n");
+    fprintf(fp, "opMode:\tfreqSearchHardLock\n");
+    fprintf(fp, "excldFreqs:\t[Inf, -Inf]\n");
+    fprintf(fp, "falseAlarmProb:\t0.05\n");
+    fprintf(fp, "dataRecordPath:\t%s/data_record.%d.bin\n", homePath, tagId);
+    fprintf(fp, "ipCntrl:\t127.0.0.1\n");
+    fprintf(fp, "portCntrl:\t30000\n");
+    fprintf(fp, "processedOuputPath:\t%s\n",                homePath);
+    fprintf(fp, "ros2enable:\tfalse\n");
+    fprintf(fp, "startInRunState:\ttrue\n");
+    fprintf(fp, "timeStamp:\t1646403180.469\n");
+
+    fclose(fp);
+
+    return true;
+}
+
+bool TagDatabase::writeDetectorConfigs() const
+{
+    for (const ExtTagInfo_t& extTagInfo : *this) {
+        _writeDetectorConfig(extTagInfo, false);
+        if (extTagInfo.tagInfo.intra_pulse2_msecs != 0) {
+            _writeDetectorConfig(extTagInfo, true);
+        }
+    }
+
+    return true;
+}
+
+std::string TagDatabase::channelizerCommandLine() const
+{
+    std::string commandLine;
+
+    for (const ExtTagInfo_t& extTagInfo : *this) {
+        commandLine += formatString("%d ", extTagInfo.oneBasedChannelBin * (extTagInfo.tagInfo.intra_pulse2_msecs != 0 ? -1 : 1));
+    }
+
+    return commandLine;
 }

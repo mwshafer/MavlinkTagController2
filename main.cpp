@@ -25,15 +25,16 @@ int main(int argc, char** argv)
     Mavsdk mavsdk;
     mavsdk.set_configuration(Mavsdk::Configuration(1, MAV_COMP_ID_ONBOARD_COMPUTER, true));
 
-    if (argc != 2) {
-        logError() << "Connection url must be specified on command line";
-        return 1;
+    const char* connectionUrl = "udp://0.0.0.0:14540"; // Default to SITL
+    if (argc == 2) {
+        connectionUrl = argv[1];
     }
+    logInfo() << "Connecting to" << connectionUrl;
 
     ConnectionResult connection_result;
-    connection_result = mavsdk.add_any_connection(argv[1]);
+    connection_result = mavsdk.add_any_connection(connectionUrl);
     if (connection_result != ConnectionResult::Success) {
-        logError() << "Connection failed for" << argv[1] << ":" << connection_result;
+        logError() << "Connection failed for" << connectionUrl << ":" << connection_result;
         return 1;
     }
 
