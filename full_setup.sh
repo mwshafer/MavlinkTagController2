@@ -7,11 +7,6 @@ echo "*** Install tools"
 sudo apt install build-essential
 sudo apt install git cmake build-essential libboost-all-dev airspy libfftw3-dev -y
 
-echo "*** Install MAVSdk"
-wget https://github.com/mavlink/MAVSDK/releases/download/v1.4.12/libmavsdk-dev_1.4.12_ubuntu20.04_amd64.deb
-sudo dpkg -i libmavsdk-dev_1.4.12_ubuntu20.04_amd64.deb
-rm libmavsdk-dev_1.4.12_ubuntu20.04_amd64.deb
-
 echo "*** Create repos directory"
 cd ~
 if [ ! -d repos ]; then
@@ -36,7 +31,7 @@ if [ ! -d csdr-uavrt ]; then
 fi
 cd ~/repos/csdr-uavrt
 git pull origin master
-make
+make -j4
 sudo make install
 
 echo "*** Clone and build airspy_channelize"

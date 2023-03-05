@@ -94,7 +94,7 @@ public:
         std::cout << _s.str();
         std::cout << " (" << _caller_filename << ":" << std::dec << _caller_filenumber << ")";
 
-        std::cout << '\n';
+        std::cout << std::endl;
 
         _logMutex.unlock();
     }
