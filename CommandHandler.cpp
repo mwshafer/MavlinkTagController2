@@ -18,6 +18,7 @@
 #include "MonitoredProcess.h"
 #include "formatString.h"
 #include "log.h"
+#include "channelizerTuner.h"
 
 using namespace mavsdk;
 using namespace TunnelProtocol;
@@ -79,17 +80,12 @@ bool CommandHandler::_handleTag(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    if (_tagDatabase.size() == 2) {
-        logError() << "CommandHandler::_handleTagCommand: Only two tags supported";
-        return false;
-    } 
-
     logDebug() << "CommandHandler::handleTagCommand: id:freq:intra_pulse1_msecs " 
                 << tagInfo.id
                 << tagInfo.frequency_hz
                 << tagInfo.intra_pulse1_msecs;
 
-    _tagDatabase.push_back(tagInfo);
+    _tagDatabase.addTag(tagInfo);
 
     return true;
 }
@@ -98,17 +94,33 @@ bool CommandHandler::_handleEndTags(void)
 {
     logDebug() << "_handleEndTags _receivingTags" << _receivingTags;
 
-    if (_receivingTags) {
-        _receivingTags = false;
-        if (!_writeDetectorConfig(0) || !_writeDetectorConfig(1)) {
-            return false;
-        }
-        remove(_detectorLogFileName(0).c_str());
-        remove(_detectorLogFileName(1).c_str());
-        return true;
-    } else {
+    if (!_receivingTags) {
         return false;
     }
+
+    _receivingTags = false;
+
+    const uint32_t          sampleRateHz    = 375000;
+    const uint32_t          nChannels       = 100;
+    std::vector<uint32_t>   freqListHz;
+    uint32_t                bestCenterHz;
+    std::vector<uint32_t>   channelBins;
+
+    if (!_tagDatabase.channelizerTuner(sampleRateHz, nChannels, bestCenterHz)) {
+        logError() << "CommandHandler::_handleEndTags: channelizerTuner failed";
+        sendStatusText(_mavlinkPassthrough, "Channelizer Tuner failed", MAV_SEVERITY_ALERT);
+        return false;
+    }
+    logDebug() << "CommandHandler::_handleEndTags: bestCenterHz" << bestCenterHz << "channelBins" << channelBins;
+
+    if (!_writeDetectorConfig(0) || !_writeDetectorConfig(1)) {
+        return false;
+    }
+
+    remove(_detectorLogFileName(0).c_str());
+    remove(_detectorLogFileName(1).c_str());
+
+    return true;
 }
 
 bool CommandHandler::_handleStartDetection(void)

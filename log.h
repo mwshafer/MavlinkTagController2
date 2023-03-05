@@ -1,11 +1,11 @@
 #pragma once
 
 #include <sstream>
-#include "log_callback.h"
-
+#include <vector>
 #include <iostream>
 #include <ctime>
 #include <mutex>
+#include <functional>
 
 // Remove path and extract only filename.
 #define FILENAME \
@@ -34,6 +34,14 @@ public:
     template<typename T> LogDetailed& operator<<(const T& x)
     {
         _s << x << " ";
+        return *this;
+    }
+
+    template<typename T> LogDetailed& operator<<(const std::vector<T>& vector)
+    {
+        for (auto value : vector) {
+            _s << value << ", ";
+        }   
         return *this;
     }
 

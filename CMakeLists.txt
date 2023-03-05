@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.2)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 
@@ -16,6 +16,7 @@ find_package(MAVSDK REQUIRED)
 
 add_executable(MavlinkTagController
     main.cpp
+    channelizerTuner.cpp channelizerTuner.h
     CommandHandler.cpp CommandHandler.h
     UDPPulseReceiver.cpp UDPPulseReceiver.h
     sendTunnelMessage.cpp sendTunnelMessage.h
@@ -23,7 +24,7 @@ add_executable(MavlinkTagController
     MonitoredProcess.cpp MonitoredProcess.h
     log.cpp log.h
     formatString.h
-    TagDatabase.h
+    TagDatabase.cpp TagDatabase.h
     uavrt_interfaces/include/uavrt_interfaces/TunnelProtocol.h
 )
 
