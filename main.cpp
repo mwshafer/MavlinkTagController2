@@ -4,6 +4,7 @@
 #include "sendTunnelMessage.h"
 #include "sendStatusText.h"
 #include "log.h"
+#include "MavlinkOutgoingMessageQueue.h"
 
 #include <chrono>
 #include <cstdint>
@@ -70,17 +71,18 @@ int main(int argc, char** argv)
     }
 
     auto mavlinkPassthrough = MavlinkPassthrough{ qgcSystem };
-    auto udpPulseReceiver  = UDPPulseReceiver{ std::string("127.0.0.1"), 50000, mavlinkPassthrough };
+    auto outgoingMessageQueue = MavlinkOutgoingMessageQueue{ mavlinkPassthrough };
+    auto udpPulseReceiver  = UDPPulseReceiver{ std::string("127.0.0.1"), 50000, outgoingMessageQueue };
     
-    auto commandHandler = CommandHandler{ *qgcSystem, mavlinkPassthrough };
+    auto commandHandler = CommandHandler{ *qgcSystem, outgoingMessageQueue };
 
     udpPulseReceiver.start();
 
     logInfo() << "Ready";
-    sendStatusText(mavlinkPassthrough, "MavlinkTagController Ready");
+    sendStatusText(outgoingMessageQueue, "MavlinkTagController Ready");
 
     while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     return 0;

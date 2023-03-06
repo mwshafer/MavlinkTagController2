@@ -20,10 +20,10 @@
 using namespace TunnelProtocol;
 
 
-UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkPassthrough& mavlinkPassthrough)
-    : _localIp	         (std::move(localIp))
-    , _localPort         (localPort)
-    , _mavlinkPassthrough(mavlinkPassthrough)
+UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkOutgoingMessageQueue& outgoingMessageQueue)
+    : _localIp	            (std::move(localIp))
+    , _localPort            (localPort)
+    , _outgoingMessageQueue (outgoingMessageQueue)
 {
 
 }
@@ -134,10 +134,7 @@ void UDPPulseReceiver::_receive()
             pulseInfo.detection_status              = (uint8_t)udpPulseInfo.detection_status;
             pulseInfo.confirmed_status              = (uint8_t)udpPulseInfo.confirmed_status;
 
-            sendTunnelMessage(_mavlinkPassthrough, &pulseInfo, sizeof(pulseInfo));
-
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(100ms);
+            sendTunnelMessage(_outgoingMessageQueue, &pulseInfo, sizeof(pulseInfo));
         }
     }
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
+#include "MavlinkOutgoingMessageQueue.h"
 
 #include <string>
 #include <thread>
@@ -8,8 +8,6 @@
 #include <memory>
 
 #include <boost/process.hpp>
-
-using namespace mavsdk;
 
 namespace bp = boost::process;
 
@@ -23,12 +21,12 @@ public:
 	};
 
 	MonitoredProcess(
-		MavlinkPassthrough& 		mavlinkPassthrough, 
-		const char* 				name, 
-		const char* 				command, 
-		const char* 				logPath, 
-		IntermediatePipeType		intermediatePipeType,
-		std::shared_ptr<bp::pipe>& 	intermediatePipe);
+		MavlinkOutgoingMessageQueue& 	outgoingMessageQueue, 
+		const char* 					name, 
+		const char* 					command, 
+		const char* 					logPath, 
+		IntermediatePipeType			intermediatePipeType,
+		std::shared_ptr<bp::pipe>& 		intermediatePipe);
 
 	void start 	(void);
 	void stop	(void);
@@ -36,14 +34,14 @@ public:
 private:
 	void _run(void);
 
-	MavlinkPassthrough&			_mavlinkPassthrough;
-	std::string					_name;
-	std::string 				_command;
-	std::string					_logPath;
-	std::thread*				_thread			= NULL;
-	boost::process::child*		_childProcess 	= NULL;
-	bool						_terminated		= false;
-	IntermediatePipeType		_intermediatePipeType;
-	std::shared_ptr<bp::pipe>	_intermediatePipe;
-	static bp::pipe				staticPipe;
+	MavlinkOutgoingMessageQueue&	_outgoingMessageQueue;
+	std::string						_name;
+	std::string 					_command;
+	std::string						_logPath;
+	std::thread*					_thread			= NULL;
+	boost::process::child*			_childProcess 	= NULL;
+	bool							_terminated		= false;
+	IntermediatePipeType			_intermediatePipeType;
+	std::shared_ptr<bp::pipe>		_intermediatePipe;
+	static bp::pipe					staticPipe;
 };

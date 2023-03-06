@@ -1,17 +1,14 @@
 #include "sendTunnelMessage.h"
-#include "log.h"
 
-#include <mutex>
-#include <iostream>
+#include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
-void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPayload, size_t tunnelPayloadSize)
+void sendTunnelMessage(MavlinkOutgoingMessageQueue& outgoingMessageQueue, void* tunnelPayload, size_t tunnelPayloadSize)
 {
-    static std::mutex sendMutex;
-
-    sendMutex.lock();
-
     mavlink_message_t   message;
     mavlink_tunnel_t    tunnel;
+
+    mavsdk::MavlinkPassthrough& mavlinkPassthrough = outgoingMessageQueue.mavlinkPassthrough();
 
     memset(&tunnel, 0, sizeof(tunnel));
 
@@ -27,10 +24,6 @@ void sendTunnelMessage(MavlinkPassthrough& mavlinkPassthrough, void* tunnelPaylo
         mavlinkPassthrough.get_our_compid(),
         &message,
         &tunnel);
-    auto result = mavlinkPassthrough.send_message(message);
-    if (result != MavlinkPassthrough::Result::Success) {
-        logError() << "sendTunnelMessage failed" << result;
-    }
 
-    sendMutex.unlock();      	
+    outgoingMessageQueue.addMessage(message);
 }

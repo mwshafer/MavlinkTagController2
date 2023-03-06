@@ -9,13 +9,13 @@
 bp::pipe MonitoredProcess::staticPipe;
 
 MonitoredProcess::MonitoredProcess(
-		MavlinkPassthrough& 		mavlinkPassthrough, 
-		const char* 				name, 
-		const char* 				command, 
-		const char* 				logPath, 
-		IntermediatePipeType		intermediatePipeType,
-		std::shared_ptr<bp::pipe>& 	intermediatePipe)
-	: _mavlinkPassthrough 	(mavlinkPassthrough)
+		MavlinkOutgoingMessageQueue& 	outgoingMessageQueue, 
+		const char* 					name, 
+		const char* 					command, 
+		const char* 					logPath, 
+		IntermediatePipeType			intermediatePipeType,
+		std::shared_ptr<bp::pipe>& 		intermediatePipe)
+	: _outgoingMessageQueue (outgoingMessageQueue)
 	, _name					(name)
 	, _command				(command)
 	, _logPath				(logPath)
@@ -54,7 +54,7 @@ void MonitoredProcess::_run(void)
 	statusStr.append(_name);
 
 	logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
-	sendStatusText(_mavlinkPassthrough, statusStr.c_str());
+	sendStatusText(_outgoingMessageQueue, statusStr.c_str());
 
 	try {
 		switch (_intermediatePipeType ) {
@@ -103,7 +103,7 @@ void MonitoredProcess::_run(void)
 	_terminated = false;
 
 	logError() << statusStr;
-	sendStatusText(_mavlinkPassthrough, statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
+	sendStatusText(_outgoingMessageQueue, statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
 
     delete this;   
 }

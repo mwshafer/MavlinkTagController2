@@ -23,14 +23,14 @@
 using namespace mavsdk;
 using namespace TunnelProtocol;
 
-CommandHandler::CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough)
+CommandHandler::CommandHandler(System& system, MavlinkOutgoingMessageQueue& outgoingMessageQueue)
     : _system               (system)
-    , _mavlinkPassthrough   (mavlinkPassthrough)
+    , _outgoingMessageQueue (outgoingMessageQueue)
     , _homePath             (getenv("HOME"))
 {
     using namespace std::placeholders;
 
-    _mavlinkPassthrough.subscribe_message_async(MAVLINK_MSG_ID_TUNNEL, std::bind(&CommandHandler::_handleTunnelMessage, this, _1));
+    outgoingMessageQueue.mavlinkPassthrough().subscribe_message_async(MAVLINK_MSG_ID_TUNNEL, std::bind(&CommandHandler::_handleTunnelMessage, this, _1));
 }
 
 void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
@@ -43,7 +43,7 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
     ackInfo.command         = command;
     ackInfo.result          = result;
 
-    sendTunnelMessage(_mavlinkPassthrough, &ackInfo, sizeof(ackInfo));
+    sendTunnelMessage(_outgoingMessageQueue, &ackInfo, sizeof(ackInfo));
 }
 
 bool CommandHandler::_handleStartTags(void)
@@ -55,7 +55,7 @@ bool CommandHandler::_handleStartTags(void)
     }
 
     if (_receivingTags) {
-        sendStatusText(_mavlinkPassthrough, "Cancelling previous Start Tags sequence", MAV_SEVERITY_ALERT);
+        sendStatusText(_outgoingMessageQueue, "Cancelling previous Start Tags sequence", MAV_SEVERITY_ALERT);
     }
 
     _tagDatabase.clear();
@@ -105,14 +105,14 @@ bool CommandHandler::_handleEndTags(void)
 
     if (!_tagDatabase.channelizerTuner(sampleRateHz, nChannels, _radioCenterFreqHz)) {
         logError() << "CommandHandler::_handleEndTags: channelizerTuner failed";
-        sendStatusText(_mavlinkPassthrough, "Channelizer Tuner failed", MAV_SEVERITY_ALERT);
+        sendStatusText(_outgoingMessageQueue, "Channelizer Tuner failed", MAV_SEVERITY_ALERT);
         return false;
     }
     logDebug() << "CommandHandler::_handleEndTags: _radioCenterFreqHz" << _radioCenterFreqHz;
 
     if (!_tagDatabase.writeDetectorConfigs()) {
         logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
-        sendStatusText(_mavlinkPassthrough, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
+        sendStatusText(_outgoingMessageQueue, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
         return false;
     }
 
@@ -129,7 +129,7 @@ void CommandHandler::_startDetector(const ExtTagInfo_t& extTagInfo, bool seconda
     std::string logPath     = _detectorLogFileName(extTagInfo, secondaryChannel);
 
     MonitoredProcess* detectorProc = new MonitoredProcess(
-                                                _mavlinkPassthrough, 
+                                                _outgoingMessageQueue, 
                                                 "uavrt_detection", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
@@ -156,7 +156,7 @@ bool CommandHandler::_handleStartDetection(void)
     std::string logPath     = formatString("%s/airspy_rx.log",
                                 _homePath);
     MonitoredProcess* airspyProc = new MonitoredProcess(
-                                            _mavlinkPassthrough, 
+                                            _outgoingMessageQueue, 
                                             "airspy_rx", 
                                             commandStr.c_str(), 
                                             logPath.c_str(), 
@@ -166,7 +166,7 @@ bool CommandHandler::_handleStartDetection(void)
 
     logPath = formatString("%s/csdr-uavrt.log", _homePath);
     MonitoredProcess* csdrProc = new MonitoredProcess(
-                                            _mavlinkPassthrough, 
+                                            _outgoingMessageQueue, 
                                             "csdr-uavrt", 
                                             "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
                                             logPath.c_str(), 
@@ -178,7 +178,7 @@ bool CommandHandler::_handleStartDetection(void)
     commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, "-1" /*_tagDatabase.channelizerCommandLine().c_str()*/);
     logPath = formatString("%s/airspy_channelize.log", _homePath);
     MonitoredProcess* channelizeProc = new MonitoredProcess(
-                                                _mavlinkPassthrough, 
+                                                _outgoingMessageQueue, 
                                                 "airspy_channelize", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
@@ -214,7 +214,7 @@ bool CommandHandler::_handleAirspyMini(void)
     std::string                 logPath    = formatString("%s/airspy-mini-capture.log", _homePath);
 
     MonitoredProcess* airspyProcess = new MonitoredProcess(
-                                                _mavlinkPassthrough, 
+                                                _outgoingMessageQueue, 
                                                 "mini-capture", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 

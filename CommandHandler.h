@@ -1,16 +1,14 @@
 #pragma once
 
-#include <mavsdk/mavsdk.h>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
-
 #include "TunnelProtocol.h"
 #include "TagDatabase.h"
+#include "MavlinkOutgoingMessageQueue.h"
 
-using namespace mavsdk;
+#include <mavsdk/mavsdk.h>
 
 class CommandHandler {
 public:
-    CommandHandler(System& system, MavlinkPassthrough& mavlinkPassthrough);
+    CommandHandler(mavsdk::System& system, MavlinkOutgoingMessageQueue& outgoingMessageQueue);
 
 private:
     void _sendCommandAck        (uint32_t command, uint32_t result);
@@ -28,11 +26,11 @@ private:
     std::string _tunnelCommandResultToString(uint32_t result);
 
 private:
-    System&                     _system;
-    MavlinkPassthrough&         _mavlinkPassthrough;
-    TagDatabase                 _tagDatabase;
-    bool                        _receivingTags      = false;
-    bool                        _detectorsRunning   = false;
-    char*                       _homePath           = NULL;
-    uint32_t                    _radioCenterFreqHz  = 0;
+    mavsdk::System&                 _system;
+    MavlinkOutgoingMessageQueue&    _outgoingMessageQueue;
+    TagDatabase                     _tagDatabase;
+    bool                            _receivingTags      = false;
+    bool                            _detectorsRunning   = false;
+    char*                           _homePath           = NULL;
+    uint32_t                        _radioCenterFreqHz  = 0;
 };

@@ -1,15 +1,14 @@
 #include "sendStatusText.h"
 
-#include <mutex>
+#include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
-void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text, uint8_t severity)
+void sendStatusText(MavlinkOutgoingMessageQueue& outgoingMessageQueue, const char* text, uint8_t severity)
 {
-    static std::mutex sendMutex;
-
-    sendMutex.lock();
-
     mavlink_message_t       message;
     mavlink_statustext_t    statustext;
+
+    mavsdk::MavlinkPassthrough& mavlinkPassthrough = outgoingMessageQueue.mavlinkPassthrough();
 
     memset(&statustext, 0, sizeof(statustext));
 
@@ -22,7 +21,5 @@ void sendStatusText(MavlinkPassthrough& mavlinkPassthrough, const char* text, ui
         mavlinkPassthrough.get_our_compid(),
         &message,
         &statustext);
-    mavlinkPassthrough.send_message(message);        	
-
-    sendMutex.unlock();       
+    outgoingMessageQueue.addMessage(message);        	
 }
