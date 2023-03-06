@@ -76,16 +76,16 @@ public:
 
         switch (_log_level) {
             case LogLevel::Debug:
-                std::cout << "|Debug] ";
+                std::cout << "|D] ";
                 break;
             case LogLevel::Info:
-                std::cout << "|Info ] ";
+                std::cout << "|I] ";
                 break;
             case LogLevel::Warn:
-                std::cout << "|Warn ] ";
+                std::cout << "|W] ";
                 break;
             case LogLevel::Err:
-                std::cout << "|Error] ";
+                std::cout << "|E] ";
                 break;
         }
 
