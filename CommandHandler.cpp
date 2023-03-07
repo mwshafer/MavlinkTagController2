@@ -263,7 +263,6 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
         break;
     }
 
-
     _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE);
 }
 

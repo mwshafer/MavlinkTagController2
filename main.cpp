@@ -5,6 +5,7 @@
 #include "sendStatusText.h"
 #include "log.h"
 #include "MavlinkOutgoingMessageQueue.h"
+#include "startHeartbeatSender.h"
 
 #include <chrono>
 #include <cstdint>
@@ -77,6 +78,7 @@ int main(int argc, char** argv)
     auto commandHandler = CommandHandler{ *qgcSystem, outgoingMessageQueue };
 
     udpPulseReceiver.start();
+    startHeartbeatSender(outgoingMessageQueue, 5000);
 
     logInfo() << "Ready";
     sendStatusText(outgoingMessageQueue, "MavlinkTagController Ready");

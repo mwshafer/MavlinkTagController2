@@ -26,6 +26,7 @@ add_executable(MavlinkTagController
     formatString.h
     TagDatabase.cpp TagDatabase.h
     MavlinkOutgoingMessageQueue.cpp MavlinkOutgoingMessageQueue.h
+    startHeartbeatSender.cpp startHeartbeatSender.h
     uavrt_interfaces/include/uavrt_interfaces/TunnelProtocol.h
 )
 
