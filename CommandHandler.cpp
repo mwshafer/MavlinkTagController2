@@ -152,7 +152,7 @@ bool CommandHandler::_handleStartDetection(void)
     std::shared_ptr<bp::pipe> intermediatePipe;
 
     std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
-                                (double)_radioCenterFreqHz / 1000000.0);
+                                146); ///(double)_radioCenterFreqHz / 1000000.0);
     std::string logPath     = formatString("%s/airspy_rx.log",
                                 _homePath);
     MonitoredProcess* airspyProc = new MonitoredProcess(
