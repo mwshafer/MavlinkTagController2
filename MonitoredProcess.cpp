@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <thread>
+#include <filesystem>
 
 bp::pipe MonitoredProcess::staticPipe;
 
@@ -55,6 +56,8 @@ void MonitoredProcess::_run(void)
 
 	logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
 	sendStatusText(_outgoingMessageQueue, statusStr.c_str());
+
+	std::filesystem::remove(_logPath);
 
 	try {
 		switch (_intermediatePipeType ) {
