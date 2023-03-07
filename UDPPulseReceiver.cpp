@@ -88,6 +88,7 @@ void UDPPulseReceiver::_receive()
             double predict_next_start_seconds;
             double snr;
             double stft_score;
+            double group_seq_counter;
             double group_ind;
             double group_snr;
             double detection_status;
@@ -111,9 +112,9 @@ void UDPPulseReceiver::_receive()
         while (pulseCount--) {
             UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
-            std::string pulseStatus = formatString("Id: %u Time: %.1f SNR: %.2f Conf: %u",
+            std::string pulseStatus = formatString("Id: %u seq_counter: %u %.1f SNR: %.2f Conf: %u",
                                             (uint)udpPulseInfo.tag_id,
-                                            udpPulseInfo.start_time_seconds,
+                                            (uint)udpPulseInfo.group_seq_counter,
                                             udpPulseInfo.snr,
                                             (uint)udpPulseInfo.confirmed_status);
             logInfo() << pulseStatus;
@@ -129,6 +130,7 @@ void UDPPulseReceiver::_receive()
             pulseInfo.predict_next_start_seconds    = udpPulseInfo.predict_next_start_seconds;
             pulseInfo.snr                           = udpPulseInfo.snr;
             pulseInfo.stft_score                    = udpPulseInfo.stft_score;
+            pulseInfo.group_seq_counter             = (uint16_t)udpPulseInfo.group_seq_counter;
             pulseInfo.group_ind                     = (uint16_t)udpPulseInfo.group_ind;
             pulseInfo.group_snr                     = udpPulseInfo.group_snr;
             pulseInfo.detection_status              = (uint8_t)udpPulseInfo.detection_status;
