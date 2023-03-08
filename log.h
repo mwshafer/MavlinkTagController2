@@ -13,10 +13,10 @@
 
 #define call_user_callback(...) call_user_callback_located(FILENAME, __LINE__, __VA_ARGS__)
 
-#define logDebug() LogDebugDetailed(FILENAME, __LINE__)
-#define logInfo() LogInfoDetailed(FILENAME, __LINE__)
-#define logWarn() LogWarnDetailed(FILENAME, __LINE__)
-#define logError() LogErrDetailed(FILENAME, __LINE__)
+#define logDebug()  LogDebugDetailed(FILENAME, __LINE__)
+#define logInfo()   LogInfoDetailed (FILENAME, __LINE__)
+#define logWarn()   LogWarnDetailed (FILENAME, __LINE__)
+#define logError()  LogErrDetailed  (FILENAME, __LINE__)
 
 enum class LogColor { Red, Green, Yellow, Blue, Gray, Reset };
 enum class LogLevel : int { Debug = 0, Info = 1, Warn = 2, Err = 3 };

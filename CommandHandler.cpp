@@ -85,7 +85,7 @@ bool CommandHandler::_handleTag(const mavlink_tunnel_t& tunnel)
                 << tagInfo.frequency_hz
                 << tagInfo.intra_pulse1_msecs;
 
-    _tagDatabase.addTag(tagInfo);
+    _tagDatabase.push_back(tagInfo);
 
     return true;
 }
@@ -100,16 +100,6 @@ bool CommandHandler::_handleEndTags(void)
 
     _receivingTags = false;
 
-    const uint32_t          sampleRateHz    = 375000;
-    const uint32_t          nChannels       = 100;
-
-    if (!_tagDatabase.channelizerTuner(sampleRateHz, nChannels, _radioCenterFreqHz)) {
-        logError() << "CommandHandler::_handleEndTags: channelizerTuner failed";
-        sendStatusText(_outgoingMessageQueue, "Channelizer Tuner failed", MAV_SEVERITY_ALERT);
-        return false;
-    }
-    logDebug() << "CommandHandler::_handleEndTags: _radioCenterFreqHz" << _radioCenterFreqHz;
-
     if (!_tagDatabase.writeDetectorConfigs()) {
         logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
         sendStatusText(_outgoingMessageQueue, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
@@ -119,14 +109,14 @@ bool CommandHandler::_handleEndTags(void)
     return true;
 }
 
-void CommandHandler::_startDetector(const ExtTagInfo_t& extTagInfo, bool secondaryChannel)
+void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel)
 {
     // FIXME: We leak MonitoredProcess objects here
     std::shared_ptr<bp::pipe> dummyPipe;
     std::string commandStr  = formatString("%s/repos/uavrt_detection/uavrt_detection %s",
                                 _homePath,
-                                _tagDatabase.detectorConfigFileName(extTagInfo, secondaryChannel).c_str());
-    std::string logPath     = _detectorLogFileName(extTagInfo, secondaryChannel);
+                                _tagDatabase.detectorConfigFileName(tagInfo, secondaryChannel).c_str());
+    std::string logPath     = _detectorLogFileName(tagInfo, secondaryChannel);
 
     MonitoredProcess* detectorProc = new MonitoredProcess(
                                                 _outgoingMessageQueue, 
@@ -138,21 +128,37 @@ void CommandHandler::_startDetector(const ExtTagInfo_t& extTagInfo, bool seconda
     detectorProc->start();  
 }
 
-bool CommandHandler::_handleStartDetection(void)
+bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 {
-    logDebug() << "_handleStartDetection _receivingTags:_detectorsRunnings:_tagDatabase.size" 
-        << _receivingTags
-        << _detectorsRunning
-        << _tagDatabase.size();
+    StartDetectionInfo_t startDetection;
 
-    if (_receivingTags || _detectorsRunning || _tagDatabase.size() == 0) {
+    if (tunnel.payload_length != sizeof(startDetection)) {
+        logError() << "COMMAND_ID_START_DETECTION - ERROR: Payload length incorrect expected:actual" << sizeof(startDetection) << tunnel.payload_length;
+        return false;
+    }
+
+    memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
+
+    logInfo() << "COMMAND_ID_START_DETECTION:";
+    logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
+
+    if (_receivingTags) {
+        sendStatusText(_outgoingMessageQueue, "Start detection failed. In the middle fo tag receive sequence.", MAV_SEVERITY_ALERT);
+        return false;
+    }
+    if (_detectorsRunning) {
+        sendStatusText(_outgoingMessageQueue, "Start detection failed. Detectors are already running.", MAV_SEVERITY_ALERT);
+        return false;
+    }
+    if (_tagDatabase.size() == 0) {
+        sendStatusText(_outgoingMessageQueue, "Start detection failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
         return false;
     }
 
     std::shared_ptr<bp::pipe> intermediatePipe;
 
     std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
-                                146.0); ///(double)_radioCenterFreqHz / 1000000.0);
+                                (double)startDetection.radio_center_frequency_hz / 1000000.0);
     std::string logPath     = formatString("%s/airspy_rx.log",
                                 _homePath);
     MonitoredProcess* airspyProc = new MonitoredProcess(
@@ -175,7 +181,7 @@ bool CommandHandler::_handleStartDetection(void)
     csdrProc->start();
 
     std::shared_ptr<bp::pipe> dummyPipe;
-    commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, "-1" /*_tagDatabase.channelizerCommandLine().c_str()*/);
+    commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, _tagDatabase.channelizerCommandLine().c_str());
     logPath = formatString("%s/airspy_channelize.log", _homePath);
     MonitoredProcess* channelizeProc = new MonitoredProcess(
                                                 _outgoingMessageQueue, 
@@ -186,10 +192,10 @@ bool CommandHandler::_handleStartDetection(void)
                                                 dummyPipe);
     channelizeProc->start();
 
-    for (const ExtTagInfo_t& extTagInfo: _tagDatabase) {
-        _startDetector(extTagInfo, false /* secondaryChannel */);
-        if (extTagInfo.tagInfo.intra_pulse2_msecs != 0) {
-            _startDetector(extTagInfo, true /* secondaryChannel */);
+    for (const TunnelProtocol::TagInfo_t& tagInfo: _tagDatabase) {
+        _startDetector(tagInfo, false /* secondaryChannel */);
+        if (tagInfo.intra_pulse2_msecs != 0) {
+            _startDetector(tagInfo, true /* secondaryChannel */);
         }
     }
 
@@ -253,7 +259,7 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
         success = _handleTag(tunnel);
         break;
     case COMMAND_ID_START_DETECTION:
-        success = _handleStartDetection();
+        success = _handleStartDetection(tunnel);
         break;
     case COMMAND_ID_STOP_DETECTION:
         success = _handleStopDetection();
@@ -266,9 +272,9 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE);
 }
 
-std::string CommandHandler::_detectorLogFileName(const ExtTagInfo_t& extTagInfo, bool secondaryChannel)
+std::string CommandHandler::_detectorLogFileName(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel)
 {
-    return formatString("%s/detector.%d.log", _homePath, extTagInfo.tagInfo.id + (secondaryChannel ? 1 : 0));
+    return formatString("%s/detector.%d.log", _homePath, tagInfo.id + (secondaryChannel ? 1 : 0));
 }
 
 std::string CommandHandler::_tunnelCommandIdToString(uint32_t command)
