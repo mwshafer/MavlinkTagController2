@@ -112,7 +112,7 @@ void UDPPulseReceiver::_receive()
         while (pulseCount--) {
             UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
-            std::string pulseStatus = formatString("Id: %2u seq_counter: %8u FREQ: %9u SNR: %4.1f Conf: %u",
+            std::string pulseStatus = formatString("Id: %2u seq_counter: %8u FREQ: %9u SNR: %5.1f Conf: %u",
                                             (uint)udpPulseInfo.tag_id,
                                             (uint)udpPulseInfo.group_seq_counter,
                                             (uint)udpPulseInfo.frequency_hz,

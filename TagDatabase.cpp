@@ -36,9 +36,10 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
 
     logInfo() << "DETECTOR CONFIG:" << configPath;
     logInfo() << "\ttagId:                      " << tagId;
+    logInfo() << "\ttagFreqMHz:                 " << tagInfo.frequency_hz;
+    logInfo() << "\ttip:                        " << tip_msecs;
     logInfo() << "\tchannelCenterFreqMHz:       " << tagInfo.channelizer_channel_center_frequency_hz;
     logInfo() << "\tchannelizer_channel_number: " << tagInfo.channelizer_channel_number;
-    logInfo() << "\ttagFreqMHz:                 " << tagInfo.frequency_hz;
     logInfo() << "\tportData:                   " << portData;
 
     fprintf(fp, "##################################################\n");
