@@ -20,10 +20,11 @@
 using namespace TunnelProtocol;
 
 
-UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkOutgoingMessageQueue& outgoingMessageQueue)
+UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkOutgoingMessageQueue& outgoingMessageQueue, TelemetryCache& telemetryCache)
     : _localIp	            (std::move(localIp))
     , _localPort            (localPort)
     , _outgoingMessageQueue (outgoingMessageQueue)
+    , _telemetryCache       (telemetryCache)
 {
 
 }
@@ -112,21 +113,11 @@ void UDPPulseReceiver::_receive()
         while (pulseCount--) {
             UDPPulseInfo_T udpPulseInfo = buffer[pulseIndex++];
 
-            std::string pulseStatus = formatString("Id: %2u seq_counter: %8u FREQ: %9u SNR: %5.1f Conf: %u",
-                                            (uint)udpPulseInfo.tag_id,
-                                            (uint)udpPulseInfo.group_seq_counter,
-                                            (uint)udpPulseInfo.frequency_hz,
-                                            udpPulseInfo.snr,
-                                            (uint)udpPulseInfo.confirmed_status);
-            if (udpPulseInfo.confirmed_status) {
-                logInfo() << pulseStatus;
-            } else {
-                logDebug() << pulseStatus;
-            }
-
             PulseInfo_t pulseInfo;
 
             memset(&pulseInfo, 0, sizeof(pulseInfo));
+
+            auto telemetry = _telemetryCache.telemetryForTime(udpPulseInfo.start_time_seconds);
 
             pulseInfo.header.command                = COMMAND_ID_PULSE;
             pulseInfo.tag_id                        = (uint32_t)udpPulseInfo.tag_id;
@@ -140,6 +131,26 @@ void UDPPulseReceiver::_receive()
             pulseInfo.group_snr                     = udpPulseInfo.group_snr;
             pulseInfo.detection_status              = (uint8_t)udpPulseInfo.detection_status;
             pulseInfo.confirmed_status              = (uint8_t)udpPulseInfo.confirmed_status;
+            pulseInfo.position_x                    = telemetry.position.latitude_deg;
+            pulseInfo.position_y                    = telemetry.position.longitude_deg;
+            pulseInfo.position_z                    = telemetry.position.relative_altitude_m;
+            pulseInfo.orientation_x                 = telemetry.attitudeQuaternion.x;
+            pulseInfo.orientation_y                 = telemetry.attitudeQuaternion.y;
+            pulseInfo.orientation_z                 = telemetry.attitudeQuaternion.z;
+            pulseInfo.orientation_w                 = telemetry.attitudeQuaternion.w;
+
+            std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f seq_counter: %8u freq: %9u heading: %5.1f",
+                                            pulseInfo.confirmed_status,
+                                            pulseInfo.tag_id,
+                                            pulseInfo.snr,
+                                            pulseInfo.group_seq_counter,
+                                            pulseInfo.frequency_hz,
+                                            telemetry.attitudeEuler.yaw_deg);
+            if (udpPulseInfo.confirmed_status) {
+                logInfo() << pulseStatus;
+            } else {
+                logDebug() << pulseStatus;
+            }
 
             sendTunnelMessage(_outgoingMessageQueue, &pulseInfo, sizeof(pulseInfo));
         }

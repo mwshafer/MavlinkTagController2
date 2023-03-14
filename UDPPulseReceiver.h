@@ -7,11 +7,12 @@
 #include <atomic>
 
 #include "MavlinkOutgoingMessageQueue.h"
+#include "TelemetryCache.h"
 
 class UDPPulseReceiver
 {
 public:
-	UDPPulseReceiver(std::string localIp, int localPort, MavlinkOutgoingMessageQueue& outgoingMessageQueue);
+	UDPPulseReceiver(std::string localIp, int localPort, MavlinkOutgoingMessageQueue& outgoingMessageQueue, TelemetryCache& telemetryCache);
 	~UDPPulseReceiver();
 
 	void start	(void);
@@ -27,4 +28,5 @@ private:
     int 							_localPort;
     int 							_fdSocket	{-1};
     MavlinkOutgoingMessageQueue&    _outgoingMessageQueue;
+	TelemetryCache&					_telemetryCache;
 };

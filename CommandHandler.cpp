@@ -100,11 +100,12 @@ bool CommandHandler::_handleEndTags(void)
 
     _receivingTags = false;
 
-    if (!_tagDatabase.writeDetectorConfigs()) {
-        logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
-        sendStatusText(_outgoingMessageQueue, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
-        return false;
-    }
+    std::thread([this]() {
+        if (!_tagDatabase.writeDetectorConfigs()) {
+            logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
+            sendStatusText(_outgoingMessageQueue, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
+        }
+    }).detach();
 
     return true;
 }
@@ -155,51 +156,53 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    std::shared_ptr<bp::pipe> intermediatePipe;
+    std::thread([this, startDetection]() {
+        std::shared_ptr<bp::pipe> intermediatePipe;
 
-    std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
-                                (double)startDetection.radio_center_frequency_hz / 1000000.0);
-    std::string logPath     = formatString("%s/airspy_rx.log",
-                                _homePath);
-    MonitoredProcess* airspyProc = new MonitoredProcess(
-                                            _outgoingMessageQueue, 
-                                            "airspy_rx", 
-                                            commandStr.c_str(), 
-                                            logPath.c_str(), 
-                                            MonitoredProcess::OutputPipe,
-                                            intermediatePipe);
-    airspyProc->start();
-
-    logPath = formatString("%s/csdr-uavrt.log", _homePath);
-    MonitoredProcess* csdrProc = new MonitoredProcess(
-                                            _outgoingMessageQueue, 
-                                            "csdr-uavrt", 
-                                            "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
-                                            logPath.c_str(), 
-                                            MonitoredProcess::InputPipe,
-                                            intermediatePipe);
-    csdrProc->start();
-
-    std::shared_ptr<bp::pipe> dummyPipe;
-    commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, _tagDatabase.channelizerCommandLine().c_str());
-    logPath = formatString("%s/airspy_channelize.log", _homePath);
-    MonitoredProcess* channelizeProc = new MonitoredProcess(
+        std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
+                                    (double)startDetection.radio_center_frequency_hz / 1000000.0);
+        std::string logPath     = formatString("%s/airspy_rx.log",
+                                    _homePath);
+        MonitoredProcess* airspyProc = new MonitoredProcess(
                                                 _outgoingMessageQueue, 
-                                                "airspy_channelize", 
+                                                "airspy_rx", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
-                                                MonitoredProcess::NoPipe,
-                                                dummyPipe);
-    channelizeProc->start();
+                                                MonitoredProcess::OutputPipe,
+                                                intermediatePipe);
+        airspyProc->start();
 
-    for (const TunnelProtocol::TagInfo_t& tagInfo: _tagDatabase) {
-        _startDetector(tagInfo, false /* secondaryChannel */);
-        if (tagInfo.intra_pulse2_msecs != 0) {
-            _startDetector(tagInfo, true /* secondaryChannel */);
+        logPath = formatString("%s/csdr-uavrt.log", _homePath);
+        MonitoredProcess* csdrProc = new MonitoredProcess(
+                                                _outgoingMessageQueue, 
+                                                "csdr-uavrt", 
+                                                "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
+                                                logPath.c_str(), 
+                                                MonitoredProcess::InputPipe,
+                                                intermediatePipe);
+        csdrProc->start();
+
+        std::shared_ptr<bp::pipe> dummyPipe;
+        commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, _tagDatabase.channelizerCommandLine().c_str());
+        logPath = formatString("%s/airspy_channelize.log", _homePath);
+        MonitoredProcess* channelizeProc = new MonitoredProcess(
+                                                    _outgoingMessageQueue, 
+                                                    "airspy_channelize", 
+                                                    commandStr.c_str(), 
+                                                    logPath.c_str(), 
+                                                    MonitoredProcess::NoPipe,
+                                                    dummyPipe);
+        channelizeProc->start();
+
+        for (const TunnelProtocol::TagInfo_t& tagInfo: _tagDatabase) {
+            _startDetector(tagInfo, false /* secondaryChannel */);
+            if (tagInfo.intra_pulse2_msecs != 0) {
+                _startDetector(tagInfo, true /* secondaryChannel */);
+            }
         }
-    }
 
-    _detectorsRunning = true;
+        _detectorsRunning = true;
+    }).detach();
 
     return true;
 }

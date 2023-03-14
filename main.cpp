@@ -6,16 +6,19 @@
 #include "log.h"
 #include "MavlinkOutgoingMessageQueue.h"
 #include "startHeartbeatSender.h"
+#include "TelemetryCache.h"
 
 #include <chrono>
 #include <cstdint>
-#include <mavsdk/mavsdk.h>
-#include <mavsdk/plugins/action/action.h>
-#include <mavsdk/plugins/telemetry/telemetry.h>
 #include <iostream>
 #include <future>
 #include <memory>
 #include <thread>
+
+#include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/action/action.h>
+#include <mavsdk/plugins/telemetry/telemetry.h>
+#include <mavsdk/plugins/ftp/ftp.h>
 
 using namespace mavsdk;
 
@@ -71,11 +74,14 @@ int main(int argc, char** argv)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    auto mavlinkPassthrough = MavlinkPassthrough{ qgcSystem };
-    auto outgoingMessageQueue = MavlinkOutgoingMessageQueue{ mavlinkPassthrough };
-    auto udpPulseReceiver  = UDPPulseReceiver{ std::string("127.0.0.1"), 50000, outgoingMessageQueue };
-    
-    auto commandHandler = CommandHandler{ *qgcSystem, outgoingMessageQueue };
+    auto mavlinkPassthrough     = MavlinkPassthrough            { qgcSystem };
+    auto outgoingMessageQueue   = MavlinkOutgoingMessageQueue   { mavlinkPassthrough };
+    auto telemetryCache         = TelemetryCache                { *autopilotSystem };
+    auto udpPulseReceiver       = UDPPulseReceiver              { std::string("127.0.0.1"), 50000, outgoingMessageQueue, telemetryCache };
+    auto ftpServer              = Ftp                           { autopilotSystem };
+    auto commandHandler         = CommandHandler                { *qgcSystem, outgoingMessageQueue };
+
+    ftpServer.set_root_directory(getenv("HOME"));
 
     udpPulseReceiver.start();
     startHeartbeatSender(outgoingMessageQueue, 5000);
