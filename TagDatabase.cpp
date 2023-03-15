@@ -34,14 +34,6 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     auto    portData                    = 20000 + ((tagInfo.channelizer_channel_number - 1) * 2) + secondaryChannelIncrement;
     auto    tip                         = double(tip_msecs) / 1000.0;
 
-    logInfo() << "DETECTOR CONFIG:" << configPath;
-    logInfo() << "\ttagId:                      " << tagId;
-    logInfo() << "\ttagFreqMHz:                 " << tagInfo.frequency_hz;
-    logInfo() << "\ttip:                        " << tip_msecs;
-    logInfo() << "\tchannelCenterFreqMHz:       " << tagInfo.channelizer_channel_center_frequency_hz;
-    logInfo() << "\tchannelizer_channel_number: " << tagInfo.channelizer_channel_number;
-    logInfo() << "\tportData:                   " << portData;
-
     fprintf(fp, "##################################################\n");
     fprintf(fp, "ID:\t%d\n",                                tagId);
     fprintf(fp, "channelCenterFreqMHz:\t%f\n",              channelCenterFreqMHz);
@@ -49,14 +41,14 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     fprintf(fp, "portData:\t%d\n",                          portData);
     fprintf(fp, "Fs:\t3750\n");
     fprintf(fp, "tagFreqMHz:\t%f\n",                        tagFreqMHz);
-    fprintf(fp, "tp:\t0.015\n");
+    fprintf(fp, "tp:\t%f\n",                                tagInfo.pulse_width_msecs / 1000.0);
     fprintf(fp, "tip:\t%f\n",                               tip);
-    fprintf(fp, "tipu:\t0.06000\n");
-    fprintf(fp, "tipj:\t0.020000\n");
-    fprintf(fp, "K:\t3\n");
+    fprintf(fp, "tipu:\t%f\n",                              tagInfo.intra_pulse_uncertainty_msecs / 1000.0);
+    fprintf(fp, "tipj:\t%f\n",                              tagInfo.intra_pulse_jitter_msecs / 1000.0);
+    fprintf(fp, "K:\t%u\n",                                 tagInfo.k);
     fprintf(fp, "opMode:\tfreqSearchHardLock\n");
     fprintf(fp, "excldFreqs:\t[Inf, -Inf]\n");
-    fprintf(fp, "falseAlarmProb:\t0.05\n");
+    fprintf(fp, "falseAlarmProb:\t%f\n",                    tagInfo.false_alarm_probability);
     fprintf(fp, "dataRecordPath:\t%s/data_record.%d.bin\n", homePath, tagId);
     fprintf(fp, "ipCntrl:\t127.0.0.1\n");
     fprintf(fp, "portCntrl:\t30000\n");
@@ -64,6 +56,25 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     fprintf(fp, "ros2enable:\tfalse\n");
     fprintf(fp, "startInRunState:\ttrue\n");
     fprintf(fp, "timeStamp:\t1646403180.469\n");
+
+    fclose(fp);
+
+    // Log the entire file contents for debugging ease
+
+    fp = fopen(configPath.c_str(), "r");
+    if (fp == NULL) {
+        logError() << "_writeDetectorConfig fopen failed for log output -" << strerror(errno);
+        return false;
+    }
+
+    std::string fileContents;
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+        fileContents += buffer;
+    }
+
+    logInfo() << "DETECTOR CONFIG:" << configPath;
+    logInfo() << fileContents;
 
     fclose(fp);
 
