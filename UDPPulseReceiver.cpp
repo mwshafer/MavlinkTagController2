@@ -139,18 +139,22 @@ void UDPPulseReceiver::_receive()
             pulseInfo.orientation_z                 = telemetry.attitudeQuaternion.z;
             pulseInfo.orientation_w                 = telemetry.attitudeQuaternion.w;
 
-            std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f seq_counter: %8u freq: %9u yaw/alt: %4.0f/%3.0f",
-                                            pulseInfo.confirmed_status,
-                                            pulseInfo.tag_id,
-                                            pulseInfo.snr,
-                                            pulseInfo.group_seq_counter,
-                                            pulseInfo.frequency_hz,
-                                            telemetry.attitudeEuler.yaw_deg,
-                                            telemetry.position.relative_altitude_m);
-            if (udpPulseInfo.confirmed_status) {
-                logInfo() << pulseStatus;
+            if (pulseInfo.frequency_hz == 0) {
+                logInfo() << "HEARTBEAT from Detector" << pulseInfo.tag_id;
             } else {
-                logDebug() << pulseStatus;
+                std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f seq_counter: %8u freq: %9u yaw/alt: %4.0f/%3.0f",
+                                                pulseInfo.confirmed_status,
+                                                pulseInfo.tag_id,
+                                                pulseInfo.snr,
+                                                pulseInfo.group_seq_counter,
+                                                pulseInfo.frequency_hz,
+                                                telemetry.attitudeEuler.yaw_deg,
+                                                telemetry.position.relative_altitude_m);
+                if (udpPulseInfo.confirmed_status) {
+                    logInfo() << pulseStatus;
+                } else {
+                    logDebug() << pulseStatus;
+                }
             }
 
             sendTunnelMessage(_outgoingMessageQueue, &pulseInfo, sizeof(pulseInfo));
