@@ -26,7 +26,7 @@ public:
 		const char* 					command, 
 		const char* 					logPath, 
 		IntermediatePipeType			intermediatePipeType,
-		std::shared_ptr<bp::pipe>& 		intermediatePipe);
+		bp::pipe* 						intermediatePipe);
 
 	void start 	(void);
 	void stop	(void);
@@ -42,6 +42,5 @@ private:
 	boost::process::child*			_childProcess 	= NULL;
 	bool							_terminated		= false;
 	IntermediatePipeType			_intermediatePipeType;
-	std::shared_ptr<bp::pipe>		_intermediatePipe;
-	static bp::pipe					staticPipe;
+	bp::pipe*						_intermediatePipe;
 };

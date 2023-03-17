@@ -6,6 +6,12 @@
 
 #include <mavsdk/mavsdk.h>
 
+#include <boost/process.hpp>
+
+namespace bp = boost::process;
+
+class MonitoredProcess;
+
 class CommandHandler {
 public:
     CommandHandler(mavsdk::System& system, MavlinkOutgoingMessageQueue& outgoingMessageQueue);
@@ -21,7 +27,6 @@ private:
     void _handleTunnelMessage   (const mavlink_message_t& message);
     void _startDetector         (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel);
 
-    std::string _detectorLogFileName        (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel);
     std::string _tunnelCommandIdToString    (uint32_t command);
     std::string _tunnelCommandResultToString(uint32_t result);
 
@@ -32,4 +37,7 @@ private:
     bool                            _receivingTags      = false;
     bool                            _detectorsRunning   = false;
     char*                           _homePath           = NULL;
+    std::vector<MonitoredProcess*>  _processes;
+    uint                            _startCount         = 0;
+    bp::pipe*                       _airspyPipe         = NULL;
 };

@@ -7,27 +7,21 @@
 #include <thread>
 #include <filesystem>
 
-bp::pipe MonitoredProcess::staticPipe;
-
 MonitoredProcess::MonitoredProcess(
 		MavlinkOutgoingMessageQueue& 	outgoingMessageQueue, 
 		const char* 					name, 
 		const char* 					command, 
 		const char* 					logPath, 
 		IntermediatePipeType			intermediatePipeType,
-		std::shared_ptr<bp::pipe>& 		intermediatePipe)
+		bp::pipe* 						intermediatePipe)
 	: _outgoingMessageQueue (outgoingMessageQueue)
 	, _name					(name)
 	, _command				(command)
 	, _logPath				(logPath)
 	, _intermediatePipeType	(intermediatePipeType)
+	, _intermediatePipe		(intermediatePipe)
 {
-	if (_intermediatePipeType == InputPipe) {
-		intermediatePipe = intermediatePipe;
-	} else if (_intermediatePipeType == OutputPipe) {
-		_intermediatePipe = std::make_shared<bp::pipe>();
-		intermediatePipe = _intermediatePipe;
-	}
+
 }
 
 void MonitoredProcess::start(void)
@@ -65,10 +59,10 @@ void MonitoredProcess::_run(void)
 				_childProcess = new bp::child(_command.c_str(), bp::std_out > _logPath, bp::std_err > _logPath);
 				break;
 			case InputPipe:
-				_childProcess = new bp::child(_command.c_str(), bp::std_in < staticPipe, bp::std_out > _logPath, bp::std_err > _logPath);
+				_childProcess = new bp::child(_command.c_str(), bp::std_in < *_intermediatePipe, bp::std_out > _logPath, bp::std_err > _logPath);
 				break;
 			case OutputPipe:
-				_childProcess = new bp::child(_command.c_str(), bp::std_out > staticPipe, bp::std_err > _logPath);
+				_childProcess = new bp::child(_command.c_str(), bp::std_out > *_intermediatePipe, bp::std_err > _logPath);
 				break;
 		}
 	} catch(bp::process_error& e) {

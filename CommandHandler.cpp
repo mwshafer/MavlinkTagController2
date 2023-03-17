@@ -112,12 +112,10 @@ bool CommandHandler::_handleEndTags(void)
 
 void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel)
 {
-    // FIXME: We leak MonitoredProcess objects here
-    std::shared_ptr<bp::pipe> dummyPipe;
     std::string commandStr  = formatString("%s/repos/uavrt_detection/uavrt_detection %s",
                                 _homePath,
                                 _tagDatabase.detectorConfigFileName(tagInfo, secondaryChannel).c_str());
-    std::string logPath     = _detectorLogFileName(tagInfo, secondaryChannel);
+    std::string logPath     = formatString("%s/detector.%d.%u.log", _homePath, tagInfo.id + (secondaryChannel ? 1 : 0), _startCount);
 
     MonitoredProcess* detectorProc = new MonitoredProcess(
                                                 _outgoingMessageQueue, 
@@ -125,23 +123,19 @@ void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bo
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
                                                 MonitoredProcess::NoPipe,
-                                                dummyPipe);
+                                                NULL);
     detectorProc->start();  
+    _processes.push_back(detectorProc);
 }
 
 bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 {
     StartDetectionInfo_t startDetection;
 
-    if (tunnel.payload_length != sizeof(startDetection)) {
+   if (tunnel.payload_length != sizeof(startDetection)) {
         logError() << "COMMAND_ID_START_DETECTION - ERROR: Payload length incorrect expected:actual" << sizeof(startDetection) << tunnel.payload_length;
         return false;
     }
-
-    memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
-
-    logInfo() << "COMMAND_ID_START_DETECTION:";
-    logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
 
     if (_receivingTags) {
         sendStatusText(_outgoingMessageQueue, "Start detection failed. In the middle fo tag receive sequence.", MAV_SEVERITY_ALERT);
@@ -156,43 +150,51 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    std::thread([this, startDetection]() {
-        std::shared_ptr<bp::pipe> intermediatePipe;
+    std::thread([this, &startDetection, tunnel]() {
+ 
+        memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
+
+        logInfo() << "COMMAND_ID_START_DETECTION:";
+        logInfo() << "\t_startCount:" << ++_startCount; 
+        logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
+
+        _airspyPipe = new bp::pipe();
 
         std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
                                     (double)startDetection.radio_center_frequency_hz / 1000000.0);
-        std::string logPath     = formatString("%s/airspy_rx.log",
-                                    _homePath);
+        std::string logPath     = formatString("%s/airspy_rx.%u.log", _homePath, _startCount);
         MonitoredProcess* airspyProc = new MonitoredProcess(
                                                 _outgoingMessageQueue, 
                                                 "airspy_rx", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
                                                 MonitoredProcess::OutputPipe,
-                                                intermediatePipe);
+                                                _airspyPipe);
         airspyProc->start();
+        _processes.push_back(airspyProc);
 
-        logPath = formatString("%s/csdr-uavrt.log", _homePath);
+        logPath = formatString("%s/csdr-uavrt.%u.log", _homePath, _startCount);
         MonitoredProcess* csdrProc = new MonitoredProcess(
                                                 _outgoingMessageQueue, 
                                                 "csdr-uavrt", 
                                                 "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
                                                 logPath.c_str(), 
                                                 MonitoredProcess::InputPipe,
-                                                intermediatePipe);
+                                                _airspyPipe);
         csdrProc->start();
+        _processes.push_back(csdrProc);
 
-        std::shared_ptr<bp::pipe> dummyPipe;
         commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, _tagDatabase.channelizerCommandLine().c_str());
-        logPath = formatString("%s/airspy_channelize.log", _homePath);
+        logPath = formatString("%s/airspy_channelize.%u.log", _homePath, _startCount);
         MonitoredProcess* channelizeProc = new MonitoredProcess(
                                                     _outgoingMessageQueue, 
                                                     "airspy_channelize", 
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 
                                                     MonitoredProcess::NoPipe,
-                                                    dummyPipe);
+                                                    NULL);
         channelizeProc->start();
+        _processes.push_back(channelizeProc);
 
         for (const TunnelProtocol::TagInfo_t& tagInfo: _tagDatabase) {
             _startDetector(tagInfo, false /* secondaryChannel */);
@@ -211,7 +213,21 @@ bool CommandHandler::_handleStopDetection(void)
 {
     logDebug() << "_handleStopDetection _detectorsRunnings" << _detectorsRunning;
 
-    _sendCommandAck(COMMAND_ID_STOP_DETECTION, COMMAND_RESULT_SUCCESS);
+    if (!_detectorsRunning) {
+        sendStatusText(_outgoingMessageQueue, "Detectors not running", MAV_SEVERITY_ALERT);
+        return false;
+    }
+
+    std::thread([this]() {
+        for (MonitoredProcess* process: _processes) {
+            process->stop();
+        }
+        _processes.clear();
+        _detectorsRunning = false;
+        delete _airspyPipe;
+        _airspyPipe = NULL;
+        sendStatusText(_outgoingMessageQueue, "All processes stopped", MAV_SEVERITY_ALERT);
+    }).detach();
 
     return true;
 }
@@ -228,7 +244,7 @@ bool CommandHandler::_handleAirspyMini(void)
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
                                                 MonitoredProcess::NoPipe,
-                                                dummyPipe);
+                                                NULL);
     airspyProcess->start();
 
     return true;
@@ -273,11 +289,6 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     }
 
     _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE);
-}
-
-std::string CommandHandler::_detectorLogFileName(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel)
-{
-    return formatString("%s/detector.%d.log", _homePath, tagInfo.id + (secondaryChannel ? 1 : 0));
 }
 
 std::string CommandHandler::_tunnelCommandIdToString(uint32_t command)
