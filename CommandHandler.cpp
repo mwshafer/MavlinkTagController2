@@ -131,14 +131,14 @@ void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bo
 bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 {
     StartDetectionInfo_t startDetection;
-
+ 
    if (tunnel.payload_length != sizeof(startDetection)) {
         logError() << "COMMAND_ID_START_DETECTION - ERROR: Payload length incorrect expected:actual" << sizeof(startDetection) << tunnel.payload_length;
         return false;
     }
 
     if (_receivingTags) {
-        sendStatusText(_outgoingMessageQueue, "Start detection failed. In the middle fo tag receive sequence.", MAV_SEVERITY_ALERT);
+        sendStatusText(_outgoingMessageQueue, "Start detection failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
         return false;
     }
     if (_detectorsRunning) {
@@ -150,10 +150,9 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    std::thread([this, &startDetection, tunnel]() {
- 
-        memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
+    memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
 
+    std::thread([this, startDetection]() {
         logInfo() << "COMMAND_ID_START_DETECTION:";
         logInfo() << "\t_startCount:" << ++_startCount; 
         logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
@@ -203,6 +202,9 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             }
         }
 
+        std::string startedStr = formatString("All processes started at center hz: %u", startDetection.radio_center_frequency_hz);
+        sendStatusText(_outgoingMessageQueue, startedStr.c_str(), MAV_SEVERITY_ALERT);
+
         _detectorsRunning = true;
     }).detach();
 
@@ -226,7 +228,7 @@ bool CommandHandler::_handleStopDetection(void)
         _detectorsRunning = false;
         delete _airspyPipe;
         _airspyPipe = NULL;
-        sendStatusText(_outgoingMessageQueue, "All processes stopped", MAV_SEVERITY_ALERT);
+        sendStatusText(_outgoingMessageQueue, "All processes stopped.", MAV_SEVERITY_ALERT);
     }).detach();
 
     return true;
