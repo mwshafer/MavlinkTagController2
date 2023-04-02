@@ -251,18 +251,40 @@ bool CommandHandler::_handleStopDetection(void)
 
 bool CommandHandler::_handleAirspyMini(void)
 {
-    std::shared_ptr<bp::pipe>   dummyPipe;
-    std::string                 commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f 146 -a 3000000 -h 21 -t 0 -n 90000000", _homePath);
-    std::string                 logPath    = formatString("%s/airspy-mini-capture.log", _homePath);
+    if (_receivingTags) {
+        sendStatusText(_outgoingMessageQueue, "Command failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
+        return false;
+    }
+    if (_detectorsRunning) {
+        sendStatusText(_outgoingMessageQueue, "Command failed. Detectors are already running.", MAV_SEVERITY_ALERT);
+        return false;
+    }
+    if (_tagDatabase.size() == 0) {
+        sendStatusText(_outgoingMessageQueue, "Command failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
+        return false;
+    }
 
-    MonitoredProcess* airspyProcess = new MonitoredProcess(
-                                                _outgoingMessageQueue, 
-                                                "mini-capture", 
-                                                commandStr.c_str(), 
-                                                logPath.c_str(), 
-                                                MonitoredProcess::NoPipe,
-                                                NULL);
-    airspyProcess->start();
+    std::thread([this]() {
+        double frequencyMhz = (double)_tagDatabase[0].frequency_hz / 1000000.0; 
+#ifdef AIRSPY_HF
+        std::string                 commandStr = formatString("airspyhf_rx_udp -r %s/airspy_hf.dat -f %f -a 192000 -g on -l low -n 5760000", 
+                                                        _homePath, frequencyMhz);
+        std::string                 logPath    = formatString("%s/airspy-hf-capture.log", _homePath);
+#else
+        std::string                 commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f %f -a 3000000 -h 21 -t 0 -n 90000000",
+                                                        _homePath, frequencyMhz);
+        std::string                 logPath    = formatString("%s/airspy-mini-capture.log", _homePath);
+#endif
+
+        MonitoredProcess* airspyProcess = new MonitoredProcess(
+                                                    _outgoingMessageQueue, 
+                                                    "airspy-capture", 
+                                                    commandStr.c_str(), 
+                                                    logPath.c_str(), 
+                                                    MonitoredProcess::NoPipe,
+                                                    NULL);
+        airspyProcess->start();
+    }).detach();
 
     return true;
 }
