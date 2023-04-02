@@ -39,7 +39,11 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     fprintf(fp, "channelCenterFreqMHz:\t%f\n",              channelCenterFreqMHz);
     fprintf(fp, "ipData:\t127.0.0.1\n");
     fprintf(fp, "portData:\t%d\n",                          portData);
+#ifdef AIRSPY_HF
+    fprintf(fp, "Fs:\t1920\n");
+#else
     fprintf(fp, "Fs:\t3750\n");
+#endif
     fprintf(fp, "tagFreqMHz:\t%f\n",                        tagFreqMHz);
     fprintf(fp, "tp:\t%f\n",                                tagInfo.pulse_width_msecs / 1000.0);
     fprintf(fp, "tip:\t%f\n",                               tip);

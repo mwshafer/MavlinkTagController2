@@ -157,6 +157,20 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         logInfo() << "\t_startCount:" << ++_startCount; 
         logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
 
+#ifdef AIRSPY_HF
+        std::string commandStr  = formatString("airspyhf_rx_udp -u 10000 -f %f -a 192000 -g on -l low",
+                                        (double)startDetection.radio_center_frequency_hz / 1000000.0);
+        std::string logPath     = formatString("%s/airspyhf_rx_udp.%u.log", _homePath, _startCount);
+        MonitoredProcess* airspyProc = new MonitoredProcess(
+                                                _outgoingMessageQueue, 
+                                                "airspyhf_rx_udp", 
+                                                commandStr.c_str(), 
+                                                logPath.c_str(), 
+                                                MonitoredProcess::NoPipe,
+                                                NULL);
+        airspyProc->start();
+        _processes.push_back(airspyProc);
+#else
         _airspyPipe = new bp::pipe();
 
         std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
@@ -182,6 +196,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
                                                 _airspyPipe);
         csdrProc->start();
         _processes.push_back(csdrProc);
+#endif
 
         commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, _tagDatabase.channelizerCommandLine().c_str());
         logPath = formatString("%s/airspy_channelize.%u.log", _homePath, _startCount);

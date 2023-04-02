@@ -6,6 +6,8 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 
 project(MavlinkTagController)
 
+add_compile_definitions(AIRSPY_HF)
+
 if(NOT MSVC)
     add_definitions("-Wall -Wextra")
 else()
