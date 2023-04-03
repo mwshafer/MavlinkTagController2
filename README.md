@@ -30,6 +30,11 @@ sudo cmake --build build/default --target install
 sudo apt-get install libboost-all-dev
 ```
 
+Future is needed during the first make call for MAVSDK build
+```
+pip install future
+```
+
 ### MavlinkTagController
 This is the controller on the vehicle which talks back/forth with QGC.
 
@@ -42,6 +47,14 @@ make
 
 ### Airspy
 `sudo apt install airspy`
+
+### libfftw30-dev
+Needed by csdr
+```
+sudo apt-get update
+sudo apt-get install lbfftw3-dev
+```
+
 
 ### csdr_uavrt
 This is a custom version of csdr which outputs to udp
