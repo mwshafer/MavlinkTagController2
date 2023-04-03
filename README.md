@@ -76,10 +76,20 @@ make
 ```
 
 ### airspy_channelize
+
+#### AirSpy Mini version
 ```
 cd ~/repos
-git clone --recursive git@github.com:dynamic-and-active-systems-lab/airspy_channelize.git
-cd airspy_channelize
+git clone --recursive git@github.com:dynamic-and-active-systems-lab/airspy_channelize.git airspy_channelize_mini
+cd airspy_channelize_mini
+make
+```
+
+#### AirSpy HF version
+```
+cd ~/repos
+git clone --recursive -b airspy-hf git@github.com:dynamic-and-active-systems-lab/airspy_channelize.git airspy_channelize_hf
+cd airspy_channelize_hf
 make
 ```
 
