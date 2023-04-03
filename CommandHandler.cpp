@@ -46,9 +46,18 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
     sendTunnelMessage(_outgoingMessageQueue, &ackInfo, sizeof(ackInfo));
 }
 
-bool CommandHandler::_handleStartTags(void)
+bool CommandHandler::_handleStartTags(const mavlink_tunnel_t& tunnel)
 {
-    logDebug() << "_handleStartTags _receivingTags:_detectorsRunnings" << _receivingTags << _detectorsRunning;
+    StartTagsInfo_t startTagsInfo;
+
+    if (tunnel.payload_length != sizeof(StartTagsInfo_t)) {
+        logError() << "CommandHandler::_handleStartTags ERROR - Payload length incorrect expected:actual" << sizeof(StartTagsInfo_t) << tunnel.payload_length;
+        return false;
+    }
+
+    memcpy(&startTagsInfo, tunnel.payload, sizeof(startTagsInfo));
+
+    logDebug() << "_handleStartTags sdr_type:_receivingTags:_detectorsRunnings" << startTagsInfo.sdr_type << _receivingTags << _detectorsRunning;
 
     if (_detectorsRunning) {
         return false;
@@ -60,6 +69,7 @@ bool CommandHandler::_handleStartTags(void)
 
     _tagDatabase.clear();
     _receivingTags = true;
+    _receivingTagsSdrType = startTagsInfo.sdr_type;
 
     return true;
 }
@@ -101,7 +111,7 @@ bool CommandHandler::_handleEndTags(void)
     _receivingTags = false;
 
     std::thread([this]() {
-        if (!_tagDatabase.writeDetectorConfigs()) {
+        if (!_tagDatabase.writeDetectorConfigs(_receivingTagsSdrType)) {
             logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
             sendStatusText(_outgoingMessageQueue, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
         }
@@ -130,10 +140,8 @@ void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bo
 
 bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 {
-    StartDetectionInfo_t startDetection;
- 
-   if (tunnel.payload_length != sizeof(startDetection)) {
-        logError() << "COMMAND_ID_START_DETECTION - ERROR: Payload length incorrect expected:actual" << sizeof(startDetection) << tunnel.payload_length;
+   if (tunnel.payload_length != sizeof(StartDetectionInfo_t)) {
+        logError() << "COMMAND_ID_START_DETECTION - ERROR: Payload length incorrect expected:actual" << sizeof(StartDetectionInfo_t) << tunnel.payload_length;
         return false;
     }
 
@@ -150,55 +158,77 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
+    std::thread([this, tunnel]() {
+        StartDetectionInfo_t    startDetection;
+        std::string             commandStr;
+        std::string             logPath;
+        std::string             airspyChannelizeDir;
+        
 
-    std::thread([this, startDetection]() {
+ 
+        memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
+
         logInfo() << "COMMAND_ID_START_DETECTION:";
-        logInfo() << "\t_startCount:" << ++_startCount; 
+        logInfo() << "\t_startCount:"               << ++_startCount; 
         logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
+        logInfo() << "\tsdr_type:"                  << startDetection.sdr_type; 
 
-#ifdef AIRSPY_HF
-        std::string commandStr  = formatString("airspyhf_rx_udp -u 10000 -f %f -a 192000 -g on -l low",
-                                        (double)startDetection.radio_center_frequency_hz / 1000000.0);
-        std::string logPath     = formatString("%s/airspyhf_rx_udp.%u.log", _homePath, _startCount);
-        MonitoredProcess* airspyProc = new MonitoredProcess(
-                                                _outgoingMessageQueue, 
-                                                "airspyhf_rx_udp", 
-                                                commandStr.c_str(), 
-                                                logPath.c_str(), 
-                                                MonitoredProcess::NoPipe,
-                                                NULL);
-        airspyProc->start();
-        _processes.push_back(airspyProc);
-#else
-        _airspyPipe = new bp::pipe();
+        switch (startDetection.sdr_type) {
+        case SDR_TYPE_AIRSPY_MINI:
+        {
+            _airspyPipe         = new bp::pipe();
+            airspyChannelizeDir = "airspy_channelize_mini";
 
-        std::string commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout",
-                                    (double)startDetection.radio_center_frequency_hz / 1000000.0);
-        std::string logPath     = formatString("%s/airspy_rx.%u.log", _homePath, _startCount);
-        MonitoredProcess* airspyProc = new MonitoredProcess(
-                                                _outgoingMessageQueue, 
-                                                "airspy_rx", 
-                                                commandStr.c_str(), 
-                                                logPath.c_str(), 
-                                                MonitoredProcess::OutputPipe,
-                                                _airspyPipe);
-        airspyProc->start();
-        _processes.push_back(airspyProc);
+            commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout", (double)startDetection.radio_center_frequency_hz / 1000000.0);
+            logPath     = formatString("%s/airspy_rx.%u.log", _homePath, _startCount);
+            MonitoredProcess* airspyProc = new MonitoredProcess(
+                                                    _outgoingMessageQueue, 
+                                                    "airspy_rx", 
+                                                    commandStr.c_str(), 
+                                                    logPath.c_str(), 
+                                                    MonitoredProcess::OutputPipe,
+                                                    _airspyPipe);
+            airspyProc->start();
+            _processes.push_back(airspyProc);
 
-        logPath = formatString("%s/csdr-uavrt.%u.log", _homePath, _startCount);
-        MonitoredProcess* csdrProc = new MonitoredProcess(
-                                                _outgoingMessageQueue, 
-                                                "csdr-uavrt", 
-                                                "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
-                                                logPath.c_str(), 
-                                                MonitoredProcess::InputPipe,
-                                                _airspyPipe);
-        csdrProc->start();
-        _processes.push_back(csdrProc);
-#endif
+            logPath = formatString("%s/csdr-uavrt.%u.log", _homePath, _startCount);
+            MonitoredProcess* csdrProc = new MonitoredProcess(
+                                                    _outgoingMessageQueue, 
+                                                    "csdr-uavrt", 
+                                                    "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
+                                                    logPath.c_str(), 
+                                                    MonitoredProcess::InputPipe,
+                                                    _airspyPipe);
+            csdrProc->start();
+            _processes.push_back(csdrProc);
+        }
+            break;
 
-        commandStr  = formatString("%s/repos/airspy_channelize/airspy_channelize %s", _homePath, _tagDatabase.channelizerCommandLine().c_str());
+        case SDR_TYPE_AIRSPY_HF:
+        {
+            airspyChannelizeDir = "airspy_channelize_hf";
+
+            commandStr  = formatString("airspyhf_rx_udp -u 10000 -f %f -a 192000 -g on -l low", (double)startDetection.radio_center_frequency_hz / 1000000.0);
+            logPath     = formatString("%s/airspyhf_rx_udp.%u.log", _homePath, _startCount);
+            MonitoredProcess* airspyProc = new MonitoredProcess(
+                                                    _outgoingMessageQueue, 
+                                                    "airspyhf_rx_udp", 
+                                                    commandStr.c_str(), 
+                                                    logPath.c_str(), 
+                                                    MonitoredProcess::NoPipe,
+                                                    NULL);
+            airspyProc->start();
+            _processes.push_back(airspyProc);
+        }
+            break;
+
+        default:
+            logError() << "_handleStartDetection - Unknown sdr type:" << startDetection.sdr_type;
+            sendStatusText(_outgoingMessageQueue, "Command failed. Unknown sdr type.", MAV_SEVERITY_ERROR);
+            return;
+        }
+
+        commandStr  = formatString("%s/repos/%s/airspy_channelize %s", _homePath, airspyChannelizeDir.c_str(), _tagDatabase.channelizerCommandLine().c_str());
         logPath = formatString("%s/airspy_channelize.%u.log", _homePath, _startCount);
         MonitoredProcess* channelizeProc = new MonitoredProcess(
                                                     _outgoingMessageQueue, 
@@ -249,8 +279,15 @@ bool CommandHandler::_handleStopDetection(void)
     return true;
 }
 
-bool CommandHandler::_handleAirspyMini(void)
+bool CommandHandler::_handleRawCapture(const mavlink_tunnel_t& tunnel)
 {
+    logDebug() << "_handleRawCapture" << _detectorsRunning;
+
+    if (tunnel.payload_length != sizeof(RawCapture_t)) {
+        logError() << "COMMAND_ID_RAW_CAPTURE - ERROR: Payload length incorrect expected:actual" << sizeof(RawCapture_t) << tunnel.payload_length;
+        return false;
+    }
+
     if (_receivingTags) {
         sendStatusText(_outgoingMessageQueue, "Command failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
         return false;
@@ -264,17 +301,28 @@ bool CommandHandler::_handleAirspyMini(void)
         return false;
     }
 
-    std::thread([this]() {
-        double frequencyMhz = (double)_tagDatabase[0].frequency_hz / 1000000.0; 
-#ifdef AIRSPY_HF
-        std::string                 commandStr = formatString("airspyhf_rx_udp -r %s/airspy_hf.dat -f %f -a 192000 -g on -l low -n 5760000", 
-                                                        _homePath, frequencyMhz);
-        std::string                 logPath    = formatString("%s/airspy-hf-capture.log", _homePath);
-#else
-        std::string                 commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f %f -a 3000000 -h 21 -t 0 -n 90000000",
-                                                        _homePath, frequencyMhz);
-        std::string                 logPath    = formatString("%s/airspy-mini-capture.log", _homePath);
-#endif
+    std::thread([this, tunnel]() {
+        RawCapture_t    rawCapture;
+        double          frequencyMhz = (double)_tagDatabase[0].frequency_hz / 1000000.0; 
+        std::string     commandStr;
+        std::string     logPath;
+
+        memcpy(&rawCapture, tunnel.payload, sizeof(rawCapture));
+
+        switch (rawCapture.sdr_type) {
+        case SDR_TYPE_AIRSPY_MINI:
+            commandStr = formatString("airspy_rx -r %s/airspy_mini.dat -f %f -a 3000000 -h 21 -t 0 -n 90000000", _homePath, frequencyMhz);
+            logPath    = formatString("%s/airspy-mini-capture.log", _homePath);
+            break;
+        case SDR_TYPE_AIRSPY_HF:
+            commandStr = formatString("airspyhf_rx_udp -r %s/airspy_hf.dat -f %f -a 192000 -g on -l low -n 5760000", _homePath, frequencyMhz);
+            logPath    = formatString("%s/airspy-hf-capture.log", _homePath);
+            break;
+        default:
+            logError() << "_handleRawCapture - Unknown sdr type:" << rawCapture.sdr_type;
+            sendStatusText(_outgoingMessageQueue, "Command failed. Unknown sdr type.", MAV_SEVERITY_ERROR);
+            return;
+        }
 
         MonitoredProcess* airspyProcess = new MonitoredProcess(
                                                     _outgoingMessageQueue, 
@@ -308,7 +356,7 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
 
     switch (headerInfo.command) {
     case COMMAND_ID_START_TAGS:
-        success = _handleStartTags();
+        success = _handleStartTags(tunnel);
         break;
     case COMMAND_ID_END_TAGS:
         success = _handleEndTags();
@@ -322,8 +370,8 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     case COMMAND_ID_STOP_DETECTION:
         success = _handleStopDetection();
         break;
-    case COMMAND_ID_AIRSPY_MINI:
-        success = _handleAirspyMini();
+    case COMMAND_ID_RAW_CAPTURE:
+        success = _handleRawCapture(tunnel);
         break;
     }
 
@@ -356,11 +404,8 @@ std::string CommandHandler::_tunnelCommandIdToString(uint32_t command)
     case COMMAND_ID_PULSE:
         commandStr = "PULSE";
         break;
-    case COMMAND_ID_AIRSPY_HF:
-        commandStr = "AIRSPY_HF";
-        break;
-    case COMMAND_ID_AIRSPY_MINI:
-        commandStr = "AIRSPY_MINI";
+    case COMMAND_ID_RAW_CAPTURE:
+        commandStr = "RAW_CAPTURE";
         break;
     }
 

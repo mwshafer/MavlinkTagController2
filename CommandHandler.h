@@ -18,12 +18,12 @@ public:
 
 private:
     void _sendCommandAck        (uint32_t command, uint32_t result);
-    bool _handleStartTags       (void);
+    bool _handleStartTags       (const mavlink_tunnel_t& tunnel);
     bool _handleEndTags         (void);
     bool _handleTag             (const mavlink_tunnel_t& tunnel);
     bool _handleStartDetection  (const mavlink_tunnel_t& tunnel);
     bool _handleStopDetection   (void);
-    bool _handleAirspyMini      (void);
+    bool _handleRawCapture      (const mavlink_tunnel_t& tunnel);
     void _handleTunnelMessage   (const mavlink_message_t& message);
     void _startDetector         (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel);
 
@@ -34,10 +34,11 @@ private:
     mavsdk::System&                 _system;
     MavlinkOutgoingMessageQueue&    _outgoingMessageQueue;
     TagDatabase                     _tagDatabase;
-    bool                            _receivingTags      = false;
-    bool                            _detectorsRunning   = false;
-    char*                           _homePath           = NULL;
+    bool                            _receivingTags          = false;
+    uint32_t                        _receivingTagsSdrType;
+    bool                            _detectorsRunning       = false;
+    char*                           _homePath               = NULL;
     std::vector<MonitoredProcess*>  _processes;
-    uint                            _startCount         = 0;
-    bp::pipe*                       _airspyPipe         = NULL;
+    uint                            _startCount             = 0;
+    bp::pipe*                       _airspyPipe             = NULL;
 };

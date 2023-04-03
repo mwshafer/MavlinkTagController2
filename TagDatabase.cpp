@@ -14,7 +14,7 @@ std::string TagDatabase::detectorConfigFileName(const TunnelProtocol::TagInfo_t&
     return formatString("%s/detector.%d.config", getenv("HOME"), tagInfo.id + (secondaryChannel ? 1 : 0));
 }
 
-bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel) const
+bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel, uint32_t sdrType) const
 {
     const char* homePath = getenv("HOME");
 
@@ -39,11 +39,11 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     fprintf(fp, "channelCenterFreqMHz:\t%f\n",              channelCenterFreqMHz);
     fprintf(fp, "ipData:\t127.0.0.1\n");
     fprintf(fp, "portData:\t%d\n",                          portData);
-#ifdef AIRSPY_HF
-    fprintf(fp, "Fs:\t1920\n");
-#else
-    fprintf(fp, "Fs:\t3750\n");
-#endif
+    if (sdrType == SDR_TYPE_AIRSPY_MINI) {
+        fprintf(fp, "Fs:\t3750\n");
+    } else {
+        fprintf(fp, "Fs:\t1920\n");
+    }
     fprintf(fp, "tagFreqMHz:\t%f\n",                        tagFreqMHz);
     fprintf(fp, "tp:\t%f\n",                                tagInfo.pulse_width_msecs / 1000.0);
     fprintf(fp, "tip:\t%f\n",                               tip);
@@ -85,12 +85,12 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     return true;
 }
 
-bool TagDatabase::writeDetectorConfigs() const
+bool TagDatabase::writeDetectorConfigs(uint32_t sdrType) const
 {
     for (const auto& tagInfo : *this) {
-        _writeDetectorConfig(tagInfo, false);
+        _writeDetectorConfig(tagInfo, false, sdrType);
         if (tagInfo.intra_pulse2_msecs != 0) {
-            _writeDetectorConfig(tagInfo, true);
+            _writeDetectorConfig(tagInfo, true, sdrType);
         }
     }
 

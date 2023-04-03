@@ -12,9 +12,9 @@ public:
     TagDatabase() = default;
 
     std::string detectorConfigFileName  (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel) const;
-    bool        writeDetectorConfigs    () const;
+    bool        writeDetectorConfigs    (uint32_t sdrType) const;
     std::string channelizerCommandLine  () const;
 
 private:
-    bool        _writeDetectorConfig    (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel) const;
+    bool        _writeDetectorConfig    (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel, uint32_t sdrType) const;
 };
