@@ -31,6 +31,12 @@ public:
         _caller_filenumber(filenumber)
     {}
 
+    LogDetailed& operator<<(uint8_t& x)
+    {
+        _s << (unsigned int)x << " ";
+        return *this;
+    }
+
     template<typename T> LogDetailed& operator<<(const T& x)
     {
         _s << x << " ";

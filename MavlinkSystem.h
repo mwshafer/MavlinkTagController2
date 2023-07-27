@@ -1,0 +1,55 @@
+#pragma once
+
+#include <atomic>
+#include <functional>
+#include <queue>
+#include <mutex>
+#include <memory>
+#include <unordered_map>
+
+#include "ThreadSafeQueue.h"
+#include "MavlinkOutgoingMessageQueue.h"
+
+#include <mavlink.h>
+
+#include <optional>
+
+using MessageCallback = std::function<void(const mavlink_message_t&)>;
+
+class Connection;
+
+class MavlinkSystem
+{
+public:
+	MavlinkSystem(const std::string& connectionUrl);
+	~MavlinkSystem();
+
+	bool start();
+	void stop();
+
+	std::optional<uint8_t> 	ourSystemId					() const;
+	uint8_t 				ourComponentId				() const { return MAV_COMP_ID_ONBOARD_COMPUTER; }
+	std::optional<uint8_t> 	gcsSystemId					() const;
+	const std::string& 		connectionUrl				() const { return _connectionUrl; }
+	void 					subscribeToMessage			(uint16_t message_id, const MessageCallback& callback);
+	void 					handleMessage				(const mavlink_message_t& message);
+	void 					startTunnelHeartbeatSender	();
+	bool 					connected					();
+	void 					sendHeartbeat				();
+	void 					sendStatusText				(std::string&& message, MAV_SEVERITY severity = MAV_SEVERITY_INFO);
+	void 					sendTunnelMessage			(void* tunnelPayload, size_t tunnelPayloadSize);
+	void 					sendMessage					(const mavlink_message_t& message);
+
+private:
+	void _sendMessageOnConnection(const mavlink_message_t& message);
+
+	std::string _connectionUrl {};
+	MavlinkOutgoingMessageQueue _outgoingMessageQueue;
+
+	std::unique_ptr<Connection> _connection {};
+
+	std::mutex _subscriptions_mutex {};
+	std::unordered_map<uint16_t, MessageCallback> _message_subscriptions {}; // Mavlink message ID --> callback(mavlink_message_t)
+
+	friend class MavlinkOutgoingMessageQueue;
+};

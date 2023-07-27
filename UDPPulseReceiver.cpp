@@ -1,8 +1,8 @@
 #include "UDPPulseReceiver.h"
 #include "TunnelProtocol.h"
-#include "sendTunnelMessage.h"
 #include "formatString.h"
 #include "log.h"
+#include "MavlinkSystem.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -20,11 +20,11 @@
 using namespace TunnelProtocol;
 
 
-UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkOutgoingMessageQueue& outgoingMessageQueue, TelemetryCache& telemetryCache)
+UDPPulseReceiver::UDPPulseReceiver(std::string localIp, int localPort, MavlinkSystem* mavlink/*, TelemetryCache& telemetryCache*/)
     : _localIp	            (std::move(localIp))
     , _localPort            (localPort)
-    , _outgoingMessageQueue (outgoingMessageQueue)
-    , _telemetryCache       (telemetryCache)
+    , _mavlink              (mavlink)
+    //, _telemetryCache       (telemetryCache)
 {
 
 }
@@ -117,7 +117,7 @@ void UDPPulseReceiver::_receive()
 
             memset(&pulseInfo, 0, sizeof(pulseInfo));
 
-            auto telemetry = _telemetryCache.telemetryForTime(udpPulseInfo.start_time_seconds);
+            //auto telemetry = _telemetryCache.telemetryForTime(udpPulseInfo.start_time_seconds);
 
             pulseInfo.header.command                = COMMAND_ID_PULSE;
             pulseInfo.tag_id                        = (uint32_t)udpPulseInfo.tag_id;
@@ -131,6 +131,7 @@ void UDPPulseReceiver::_receive()
             pulseInfo.group_snr                     = udpPulseInfo.group_snr;
             pulseInfo.detection_status              = (uint8_t)udpPulseInfo.detection_status;
             pulseInfo.confirmed_status              = (uint8_t)udpPulseInfo.confirmed_status;
+#if 0
             pulseInfo.position_x                    = telemetry.position.latitude_deg;
             pulseInfo.position_y                    = telemetry.position.longitude_deg;
             pulseInfo.position_z                    = telemetry.position.relative_altitude_m;
@@ -138,6 +139,7 @@ void UDPPulseReceiver::_receive()
             pulseInfo.orientation_y                 = telemetry.attitudeQuaternion.y;
             pulseInfo.orientation_z                 = telemetry.attitudeQuaternion.z;
             pulseInfo.orientation_w                 = telemetry.attitudeQuaternion.w;
+#endif
 
             if (pulseInfo.frequency_hz == 0) {
                 logInfo() << "HEARTBEAT from Detector" << pulseInfo.tag_id;
@@ -148,8 +150,8 @@ void UDPPulseReceiver::_receive()
                                                 pulseInfo.snr,
                                                 pulseInfo.group_seq_counter,
                                                 pulseInfo.frequency_hz,
-                                                telemetry.attitudeEuler.yaw_deg,
-                                                telemetry.position.relative_altitude_m);
+                                                0, //telemetry.attitudeEuler.yaw_deg,
+                                                0); //telemetry.position.relative_altitude_m);
                 if (udpPulseInfo.confirmed_status) {
                     logInfo() << pulseStatus;
                 } else {
@@ -157,7 +159,7 @@ void UDPPulseReceiver::_receive()
                 }
             }
 
-            sendTunnelMessage(_outgoingMessageQueue, &pulseInfo, sizeof(pulseInfo));
+            _mavlink->sendTunnelMessage(&pulseInfo, sizeof(pulseInfo));
         }
     }
 }

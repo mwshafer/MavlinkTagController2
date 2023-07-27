@@ -1,6 +1,6 @@
 #include "MonitoredProcess.h"
-#include "sendStatusText.h"
 #include "log.h"
+#include "MavlinkSystem.h"
 
 #include <string>
 #include <iostream>
@@ -8,13 +8,13 @@
 #include <filesystem>
 
 MonitoredProcess::MonitoredProcess(
-		MavlinkOutgoingMessageQueue& 	outgoingMessageQueue, 
+		MavlinkSystem*					mavlink,
 		const char* 					name, 
 		const char* 					command, 
 		const char* 					logPath, 
 		IntermediatePipeType			intermediatePipeType,
 		bp::pipe* 						intermediatePipe)
-	: _outgoingMessageQueue (outgoingMessageQueue)
+	: _mavlink				(mavlink)
 	, _name					(name)
 	, _command				(command)
 	, _logPath				(logPath)
@@ -49,7 +49,7 @@ void MonitoredProcess::_run(void)
 	statusStr.append(_name);
 
 	logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
-	sendStatusText(_outgoingMessageQueue, statusStr.c_str());
+	_mavlink->sendStatusText(statusStr.c_str());
 
 	std::filesystem::remove(_logPath);
 
@@ -100,7 +100,7 @@ void MonitoredProcess::_run(void)
 	_terminated = false;
 
 	logError() << statusStr;
-	sendStatusText(_outgoingMessageQueue, statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
+	_mavlink->sendStatusText(statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
 
     delete this;   
 }
