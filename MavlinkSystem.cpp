@@ -9,7 +9,11 @@
 MavlinkSystem::MavlinkSystem(const std::string& connectionUrl)
 	: _connectionUrl		(connectionUrl)
 	, _outgoingMessageQueue	(this)
-{}
+{
+	// Force all output to Mavlink V2
+	mavlink_status_t* mavlinkStatus = mavlink_get_channel_status(0);
+	mavlinkStatus->flags &= ~MAVLINK_STATUS_FLAG_OUT_MAVLINK1;	
+}
 
 MavlinkSystem::~MavlinkSystem()
 {

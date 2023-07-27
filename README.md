@@ -5,34 +5,10 @@ cd ~
 mkdir repos
 cd ~/repos
 ```
-### pip
-```
-sudo apt install python3-pip
-```
-
-### MAVSDK Build from Source
-On the rPi you'll need to buld your own MAVSdk since there isn't a released version for it. On Linux theoretically you don't need to do that, but might as well build it there as well so you are doing the same thing. Follow the instructions here: https://mavsdk.mavlink.io/main/en/cpp/guide/build.html. Checkout the latest release tag.
-```
-sudo apt-get update
-sudo apt-get install build-essential cmake git
-cd ~/repos
-git clone https://github.com/mavlink/MAVSDK.git
-cd MAVSDK
-git checkout v1.4.13
-git submodule update --init --recursive
-cmake -Bbuild/default -DCMAKE_BUILD_TYPE=Release -H.
-cmake --build build/default -j8
-sudo cmake --build build/default --target install
-```
 
 ### Boost Library
 ```
 sudo apt-get install libboost-all-dev
-```
-
-Future is needed during the first make call for MAVSDK build
-```
-pip install future
 ```
 
 ### MavlinkTagController
@@ -40,8 +16,8 @@ This is the controller on the vehicle which talks back/forth with QGC.
 
 ```
 cd ~/repos
-git clone --recursive git@github.com:DonLakeFlyer/MavlinkTagController.git
-cd MavlinkTagController 
+git clone --recursive git@github.com:DonLakeFlyer/MavlinkTagController2.git
+cd MavlinkTagController2
 make
 ```
 
@@ -123,8 +99,8 @@ chmod +x TagTracker.AppImage
 * Start PX4 SITL: `PX4_SIM_SPEED_FACTOR=2 HEADLESS=1 make -j 12 px4_sitl_default gazebo-classic_iris`
   * You may need to use jmavsim rather than gazerbo-classic_iris
 * Start MavlinkTagController: 
-  * `cd ~/repos/MavlinkTagController`
-  * `./build/MavlinkTagControler`
+  * `cd ~/repos/MavlinkTagController2`
+  * `./build/MavlinkTagControler2`
 * Start QGC Tag Tracker version
   * Click Tags to send tags
   * Click Start to start detectors
@@ -135,5 +111,5 @@ chmod +x TagTracker.AppImage
 ## Setup rPi to start MavlinkTagController at boot
 
 * run `crontab -e'
-* Add this to the end of the file: `@reboot if [ -f /home/pi/MavlinkTagController.log ]; then cp -f /home/pi/MavlinkTagController.log /home/pi/MavlinkTagController.prev.log; rm -f /home/pi/MavlinkTagController.log; fi; /home/pi/repos/MavlinkTagController/build/MavlinkTagController serial:///dev/ttyS0:57600 > /home/pi/MavlinkTagController.log 2>&1
+* Add this to the end of the file: `@reboot if [ -f /home/pi/MavlinkTagController.log ]; then cp -f /home/pi/MavlinkTagController.log /home/pi/MavlinkTagController.prev.log; rm -f /home/pi/MavlinkTagController.log; fi; /home/pi/repos/MavlinkTagController2/build/MavlinkTagController2 serial:///dev/ttyS0:57600 > /home/pi/MavlinkTagController.log 2>&1
 `  
