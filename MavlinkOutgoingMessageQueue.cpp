@@ -1,9 +1,10 @@
 #include "MavlinkOutgoingMessageQueue.h"
 #include "log.h"
+#include "MavlinkSystem.h"
 
-MavlinkOutgoingMessageQueue::MavlinkOutgoingMessageQueue(mavsdk::MavlinkPassthrough& mavlinkPassthrough)
-    : _mavlinkPassthrough   (mavlinkPassthrough)
-    , _thread               (&MavlinkOutgoingMessageQueue::_run, this)
+MavlinkOutgoingMessageQueue::MavlinkOutgoingMessageQueue(MavlinkSystem* mavlink)
+    : _mavlink  (mavlink)
+    , _thread   (&MavlinkOutgoingMessageQueue::_run, this)
 {
     _thread.detach();
 }
@@ -28,7 +29,7 @@ void MavlinkOutgoingMessageQueue::_run(void)
         if (_messages.size() > 0) {
             mavlink_message_t message = _messages[0];
             _messages.erase(_messages.begin());
-            _mavlinkPassthrough.send_message(message);
+            _mavlink->_sendMessageOnConnection(message);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }

@@ -2,19 +2,19 @@
 
 #include "TunnelProtocol.h"
 #include "TagDatabase.h"
-#include "MavlinkOutgoingMessageQueue.h"
-
-#include <mavsdk/mavsdk.h>
 
 #include <boost/process.hpp>
 
+#include <mavlink.h>
+
 namespace bp = boost::process;
 
+class MavlinkSystem;
 class MonitoredProcess;
 
 class CommandHandler {
 public:
-    CommandHandler(mavsdk::System& system, MavlinkOutgoingMessageQueue& outgoingMessageQueue);
+    CommandHandler(MavlinkSystem* mavlink);
 
 private:
     void _sendCommandAck        (uint32_t command, uint32_t result);
@@ -31,8 +31,7 @@ private:
     std::string _tunnelCommandResultToString(uint32_t result);
 
 private:
-    mavsdk::System&                 _system;
-    MavlinkOutgoingMessageQueue&    _outgoingMessageQueue;
+    MavlinkSystem*                  _mavlink;
     TagDatabase                     _tagDatabase;
     bool                            _receivingTags          = false;
     uint32_t                        _receivingTagsSdrType;

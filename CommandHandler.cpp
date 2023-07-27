@@ -1,6 +1,3 @@
-#include <mavsdk/mavsdk.h>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
-
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -13,24 +10,23 @@
 
 #include "CommandHandler.h"
 #include "TunnelProtocol.h"
-#include "sendTunnelMessage.h"
-#include "sendStatusText.h"
 #include "MonitoredProcess.h"
 #include "formatString.h"
 #include "log.h"
 #include "channelizerTuner.h"
+#include "MavlinkSystem.h"
 
-using namespace mavsdk;
+#include <mavlink.h>
+
 using namespace TunnelProtocol;
 
-CommandHandler::CommandHandler(System& system, MavlinkOutgoingMessageQueue& outgoingMessageQueue)
-    : _system               (system)
-    , _outgoingMessageQueue (outgoingMessageQueue)
+CommandHandler::CommandHandler(MavlinkSystem* mavlink)
+    : _mavlink              (mavlink)
     , _homePath             (getenv("HOME"))
 {
     using namespace std::placeholders;
 
-    outgoingMessageQueue.mavlinkPassthrough().subscribe_message_async(MAVLINK_MSG_ID_TUNNEL, std::bind(&CommandHandler::_handleTunnelMessage, this, _1));
+    _mavlink->subscribeToMessage(MAVLINK_MSG_ID_TUNNEL, std::bind(&CommandHandler::_handleTunnelMessage, this, _1));
 }
 
 void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
@@ -43,7 +39,7 @@ void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
     ackInfo.command         = command;
     ackInfo.result          = result;
 
-    sendTunnelMessage(_outgoingMessageQueue, &ackInfo, sizeof(ackInfo));
+    _mavlink->sendTunnelMessage(&ackInfo, sizeof(ackInfo));
 }
 
 bool CommandHandler::_handleStartTags(const mavlink_tunnel_t& tunnel)
@@ -64,7 +60,7 @@ bool CommandHandler::_handleStartTags(const mavlink_tunnel_t& tunnel)
     }
 
     if (_receivingTags) {
-        sendStatusText(_outgoingMessageQueue, "Cancelling previous Start Tags sequence", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("Cancelling previous Start Tags sequence", MAV_SEVERITY_ALERT);
     }
 
     _tagDatabase.clear();
@@ -113,7 +109,7 @@ bool CommandHandler::_handleEndTags(void)
     std::thread([this]() {
         if (!_tagDatabase.writeDetectorConfigs(_receivingTagsSdrType)) {
             logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
-            sendStatusText(_outgoingMessageQueue, "Write Detector Configs failed", MAV_SEVERITY_ALERT);
+            _mavlink->sendStatusText("Write Detector Configs failed", MAV_SEVERITY_ALERT);
         }
     }).detach();
 
@@ -128,7 +124,7 @@ void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bo
     std::string logPath     = formatString("%s/detector.%d.%u.log", _homePath, tagInfo.id + (secondaryChannel ? 1 : 0), _startCount);
 
     MonitoredProcess* detectorProc = new MonitoredProcess(
-                                                _outgoingMessageQueue, 
+                                                _mavlink, 
                                                 "uavrt_detection", 
                                                 commandStr.c_str(), 
                                                 logPath.c_str(), 
@@ -146,15 +142,15 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
     }
 
     if (_receivingTags) {
-        sendStatusText(_outgoingMessageQueue, "Start detection failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("Start detection failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
         return false;
     }
     if (_detectorsRunning) {
-        sendStatusText(_outgoingMessageQueue, "Start detection failed. Detectors are already running.", MAV_SEVERITY_ALERT);
+         _mavlink->sendStatusText("Start detection failed. Detectors are already running.", MAV_SEVERITY_ALERT);
         return false;
     }
     if (_tagDatabase.size() == 0) {
-        sendStatusText(_outgoingMessageQueue, "Start detection failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
+         _mavlink->sendStatusText("Start detection failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
         return false;
     }
 
@@ -182,7 +178,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout", (double)startDetection.radio_center_frequency_hz / 1000000.0);
             logPath     = formatString("%s/airspy_rx.%u.log", _homePath, _startCount);
             MonitoredProcess* airspyProc = new MonitoredProcess(
-                                                    _outgoingMessageQueue, 
+                                                    _mavlink, 
                                                     "airspy_rx", 
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 
@@ -193,7 +189,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 
             logPath = formatString("%s/csdr-uavrt.%u.log", _homePath, _startCount);
             MonitoredProcess* csdrProc = new MonitoredProcess(
-                                                    _outgoingMessageQueue, 
+                                                    _mavlink, 
                                                     "csdr-uavrt", 
                                                     "csdr-uavrt fir_decimate_cc 8 0.05 HAMMING", 
                                                     logPath.c_str(), 
@@ -211,7 +207,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             commandStr  = formatString("airspyhf_rx_udp -u 10000 -f %f -a 192000 -g on -l low", (double)startDetection.radio_center_frequency_hz / 1000000.0);
             logPath     = formatString("%s/airspyhf_rx_udp.%u.log", _homePath, _startCount);
             MonitoredProcess* airspyProc = new MonitoredProcess(
-                                                    _outgoingMessageQueue, 
+                                                    _mavlink, 
                                                     "airspyhf_rx_udp", 
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 
@@ -224,14 +220,14 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 
         default:
             logError() << "_handleStartDetection - Unknown sdr type:" << startDetection.sdr_type;
-            sendStatusText(_outgoingMessageQueue, "Command failed. Unknown sdr type.", MAV_SEVERITY_ERROR);
+            _mavlink->sendStatusText("Command failed. Unknown sdr type.", MAV_SEVERITY_ERROR);
             return;
         }
 
         commandStr  = formatString("%s/repos/%s/airspy_channelize %s", _homePath, airspyChannelizeDir.c_str(), _tagDatabase.channelizerCommandLine().c_str());
         logPath = formatString("%s/airspy_channelize.%u.log", _homePath, _startCount);
         MonitoredProcess* channelizeProc = new MonitoredProcess(
-                                                    _outgoingMessageQueue, 
+                                                    _mavlink, 
                                                     "airspy_channelize", 
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 
@@ -248,7 +244,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         }
 
         std::string startedStr = formatString("All processes started at center hz: %u", startDetection.radio_center_frequency_hz);
-        sendStatusText(_outgoingMessageQueue, startedStr.c_str(), MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText(startedStr.c_str(), MAV_SEVERITY_ALERT);
 
         _detectorsRunning = true;
     }).detach();
@@ -261,7 +257,7 @@ bool CommandHandler::_handleStopDetection(void)
     logDebug() << "_handleStopDetection _detectorsRunnings" << _detectorsRunning;
 
     if (!_detectorsRunning) {
-        sendStatusText(_outgoingMessageQueue, "Detectors not running", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("Detectors not running", MAV_SEVERITY_ALERT);
         return false;
     }
 
@@ -273,7 +269,7 @@ bool CommandHandler::_handleStopDetection(void)
         _detectorsRunning = false;
         delete _airspyPipe;
         _airspyPipe = NULL;
-        sendStatusText(_outgoingMessageQueue, "All processes stopped.", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("All processes stopped.", MAV_SEVERITY_ALERT);
     }).detach();
 
     return true;
@@ -289,15 +285,15 @@ bool CommandHandler::_handleRawCapture(const mavlink_tunnel_t& tunnel)
     }
 
     if (_receivingTags) {
-        sendStatusText(_outgoingMessageQueue, "Command failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("Command failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
         return false;
     }
     if (_detectorsRunning) {
-        sendStatusText(_outgoingMessageQueue, "Command failed. Detectors are already running.", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("Command failed. Detectors are already running.", MAV_SEVERITY_ALERT);
         return false;
     }
     if (_tagDatabase.size() == 0) {
-        sendStatusText(_outgoingMessageQueue, "Command failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
+        _mavlink->sendStatusText("Command failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
         return false;
     }
 
@@ -320,12 +316,12 @@ bool CommandHandler::_handleRawCapture(const mavlink_tunnel_t& tunnel)
             break;
         default:
             logError() << "_handleRawCapture - Unknown sdr type:" << rawCapture.sdr_type;
-            sendStatusText(_outgoingMessageQueue, "Command failed. Unknown sdr type.", MAV_SEVERITY_ERROR);
+            _mavlink->sendStatusText("Command failed. Unknown sdr type.", MAV_SEVERITY_ERROR);
             return;
         }
 
         MonitoredProcess* airspyProcess = new MonitoredProcess(
-                                                    _outgoingMessageQueue, 
+                                                    _mavlink, 
                                                     "airspy-capture", 
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 

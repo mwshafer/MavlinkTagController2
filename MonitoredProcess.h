@@ -1,7 +1,5 @@
 #pragma once
 
-#include "MavlinkOutgoingMessageQueue.h"
-
 #include <string>
 #include <thread>
 #include <chrono>
@@ -10,6 +8,8 @@
 #include <boost/process.hpp>
 
 namespace bp = boost::process;
+
+class MavlinkSystem;
 
 class MonitoredProcess
 {
@@ -21,7 +21,7 @@ public:
 	};
 
 	MonitoredProcess(
-		MavlinkOutgoingMessageQueue& 	outgoingMessageQueue, 
+		MavlinkSystem*					mavlink,
 		const char* 					name, 
 		const char* 					command, 
 		const char* 					logPath, 
@@ -34,7 +34,7 @@ public:
 private:
 	void _run(void);
 
-	MavlinkOutgoingMessageQueue&	_outgoingMessageQueue;
+	MavlinkSystem*					_mavlink;
 	std::string						_name;
 	std::string 					_command;
 	std::string						_logPath;
