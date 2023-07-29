@@ -17,7 +17,7 @@ add_executable(MavlinkTagController2
     log.cpp log.h
     formatString.h
     TagDatabase.cpp TagDatabase.h
-#    TelemetryCache.cpp TelemetryCache.h
+    TelemetryCache.cpp TelemetryCache.h
     MavlinkOutgoingMessageQueue.cpp MavlinkOutgoingMessageQueue.h
     uavrt_interfaces/include/uavrt_interfaces/TunnelProtocol.h
     Connection.cpp Connection.h

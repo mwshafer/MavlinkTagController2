@@ -1,14 +1,16 @@
 #include "TelemetryCache.h"
+#include "MavlinkSystem.h"
 
 #include <functional>
 #include <thread>
 #include <chrono>
+#include <cmath>
 
-TelemetryCache::TelemetryCache(std::shared_ptr<MavlinkSystem> mavlink)
+TelemetryCache::TelemetryCache(MavlinkSystem* mavlink)
     : _mavlink(mavlink)
 {
-	_mavlink->subscribe_to_message(MAVLINK_MSG_ID_GLOBAL_POSITION_INT,  std::bind(&TelemetryCache::_positionCallback,           this, std::placeholders::_1));
-	_mavlink->subscribe_to_message(MAVLINK_MSG_ID_ATTITUDE_QUATERNION,  std::bind(&TelemetryCache::_attitudeQuaternionCallback, this, std::placeholders::_1));
+	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_GLOBAL_POSITION_INT, std::bind(&TelemetryCache::_positionCallback,           this, std::placeholders::_1));
+	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_ATTITUDE_QUATERNION, std::bind(&TelemetryCache::_attitudeQuaternionCallback, this, std::placeholders::_1));
 
     std::thread([this]()
     {
@@ -46,108 +48,51 @@ void TelemetryCache::_positionCallback(const mavlink_message_t& message)
         return;
     }
 
-    _lastPosition.latitude  = globalPositionInt.lat  / (double)1E7;
-    _lastPosition.longitude = globalPositionInt.lon  / (double)1E7;
-    _lastPosition.altitude  = globalPositionInt.alt  / 1000.0;
+    _lastPosition.latitude          = globalPositionInt.lat  / (double)1E7;
+    _lastPosition.longitude         = globalPositionInt.lon  / (double)1E7;
+    _lastPosition.relativeAltitude  = globalPositionInt.relative_alt * 1e-3f;
 
     _havePosition = true;
 }
 
-void Vehicle::_handleAttitudeWorker(double rollRadians, double pitchRadians, double yawRadians)
+float TelemetryCache::_toDegFromRad(float rad)
 {
-    double roll, pitch, yaw;
-
-    roll = QGC::limitAngleToPMPIf(rollRadians);
-    pitch = QGC::limitAngleToPMPIf(pitchRadians);
-    yaw = QGC::limitAngleToPMPIf(yawRadians);
-
-    roll = qRadiansToDegrees(roll);
-    pitch = qRadiansToDegrees(pitch);
-    yaw = qRadiansToDegrees(yaw);
-
-    if (yaw < 0.0) {
-        yaw += 360.0;
-    }
-    // truncate to integer so widget never displays 360
-    yaw = trunc(yaw);
-
-    _rollFact.setRawValue(roll);
-    _pitchFact.setRawValue(pitch);
-    _headingFact.setRawValue(yaw);
+    return 180.0f / static_cast<float>(M_PI) * rad;
 }
 
-void Vehicle::_attitudeQuaternionCallback(mavlink_message_t& message)
+TelemetryCache::EulerAngle_t TelemetryCache::_toEulerAngleFromQuaternion(TelemetryCache::Quaternion_t quaternion)
 {
-    // only accept the attitude message from the vehicle's flight controller
-    if (message.sysid != _mavlink->autopilotSystemId() || message.compid != MAV_COMP_ID_AUTOPILOT1) {
-        return;
-    }
+    auto& q = quaternion;
 
-    _receivingAttitudeQuaternion = true;
+    EulerAngle_t eulerAngle;
+    eulerAngle.rollDegrees = _toDegFromRad(
+        atan2f(2.0f * (q.w * q.x + q.y * q.z), 1.0f - 2.0f * (q.x * q.x + q.y * q.y)));
+    eulerAngle.pitchDegrees = _toDegFromRad(asinf(2.0f * (q.w * q.y - q.z * q.x)));
+    eulerAngle.yawDegrees = _toDegFromRad(
+        atan2f(2.0f * (q.w * q.z + q.x * q.y), 1.0f - 2.0f * (q.y * q.y + q.z * q.z)));
 
-    mavlink_attitude_quaternion_t attitudeQuaternion;
-    mavlink_msg_attitude_quaternion_decode(&message, &attitudeQuaternion);
-
-    Eigen::Quaternionf quat(attitudeQuaternion.q1, attitudeQuaternion.q2, attitudeQuaternion.q3, attitudeQuaternion.q4);
-    Eigen::Vector3f rates(attitudeQuaternion.rollspeed, attitudeQuaternion.pitchspeed, attitudeQuaternion.yawspeed);
-    Eigen::Quaternionf repr_offset(attitudeQuaternion.repr_offset_q[0], attitudeQuaternion.repr_offset_q[1], attitudeQuaternion.repr_offset_q[2], attitudeQuaternion.repr_offset_q[3]);
-
-    // if repr_offset is valid, rotate attitude and rates
-    if (repr_offset.norm() >= 0.5f) {
-        quat = quat * repr_offset;
-        rates = repr_offset * rates;
-    }
-
-    float roll, pitch, yaw;
-    float q[] = { quat.w(), quat.x(), quat.y(), quat.z() };
-    mavlink_quaternion_to_euler(q, &roll, &pitch, &yaw);
-
-    _handleAttitudeWorker(roll, pitch, yaw);
-
-    rollRate()->setRawValue(qRadiansToDegrees(rates[0]));
-    pitchRate()->setRawValue(qRadiansToDegrees(rates[1]));
-    yawRate()->setRawValue(qRadiansToDegrees(rates[2]));
+    return eulerAngle;
 }
 
 void TelemetryCache::_attitudeQuaternionCallback(const mavlink_message_t& message)
 {
-    _lastAttitudeQuaternion = attitude;
-    _haveAttitudeQuaternion = true;
-}
-
-void TelemetryCache::_attitudeEulerCallback(const mavlink_message_t& message)
-{
     // only accept the attitude message from the vehicle's flight controller
-    if (message.sysid != _mavlink->autopilotSystemId() || message.compid != MAV_COMP_ID_AUTOPILOT1) {
+    if (message.sysid != _mavlink->ourSystemId() || message.compid != MAV_COMP_ID_AUTOPILOT1) {
         return;
     }
 
-    mavlink_attitude_t attitude;
-    mavlink_msg_attitude_decode(&message, &attitude);
+    mavlink_attitude_quaternion_t attitudeQuaternion;
+    mavlink_msg_attitude_quaternion_decode(&message, &attitudeQuaternion);
 
-    double roll, pitch, yaw;
+    _lastAttitudeQuaternion.w = attitudeQuaternion.q1;
+    _lastAttitudeQuaternion.x = attitudeQuaternion.q2;
+    _lastAttitudeQuaternion.y = attitudeQuaternion.q3;
+    _lastAttitudeQuaternion.z = attitudeQuaternion.q4;
 
-    roll = QGC::limitAngleToPMPIf(attitude.roll);
-    pitch = QGC::limitAngleToPMPIf(attitude.pitch);
-    yaw = QGC::limitAngleToPMPIf(yawRattitude.yawadians);
+    _lastAttitudeEuler = _toEulerAngleFromQuaternion(_lastAttitudeQuaternion);
 
-    roll = qRadiansToDegrees(roll);
-    pitch = qRadiansToDegrees(pitch);
-    yaw = qRadiansToDegrees(yaw);
-
-    if (yaw < 0.0) {
-        yaw += 360.0;
-    }
-    // truncate to integer so widget never displays 360
-    yaw = trunc(yaw);
-
-    _rollFact.setRawValue(roll);
-    _pitchFact.setRawValue(pitch);
-    _headingFact.setRawValue(yaw);
-
------------------
-    _lastAttitudeEuler = attitude;
-    _haveAttitudeEuler = true;
+    _haveAttitudeQuaternion = true;
+    _haveAttitudeEuler      = true;
 }
 
 TelemetryCache::TelemetryCacheEntry_t TelemetryCache::telemetryForTime(double timeInSeconds)
