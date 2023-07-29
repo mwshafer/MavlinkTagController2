@@ -1,10 +1,12 @@
 #pragma once
 
-#include "MavlinkSystem.h"
-
 #include <chrono>
 #include <list>
 #include <mutex>
+
+#include <mavlink.h>
+
+class MavlinkSystem;
 
 class TelemetryCache
 {
@@ -12,7 +14,7 @@ public:
 	typedef struct {
 		double 	latitude;
 		double 	longitude;
-		double 	altitude;
+		double 	relativeAltitude;
 	} Position_t;
 
 	typedef struct {
@@ -35,17 +37,18 @@ public:
 		EulerAngle_t 	attitudeEuler;
 	} TelemetryCacheEntry_t;
 
-	TelemetryCache(std::shared_ptr<MavlinkSystem> mavlink);
+	TelemetryCache(MavlinkSystem* mavlink);
 	~TelemetryCache();
 
 	TelemetryCacheEntry_t telemetryForTime(double timeInSeconds);
 
 private:
-	void _positionCallback			(const mavlink_message_t& message);
-	void _attitudeQuaternionCallback(const mavlink_message_t& message);
-	void _attitudeEulerCallback		(const mavlink_message_t& message);
+	void 			_positionCallback			(const mavlink_message_t& message);
+	void 			_attitudeQuaternionCallback	(const mavlink_message_t& message);
+	float 			_toDegFromRad				(float rad);
+	EulerAngle_t 	_toEulerAngleFromQuaternion	(Quaternion_t quaternion);
 
-	std::shared_ptr<MavlinkSystem> 		_mavlink;
+	MavlinkSystem* 						_mavlink;
 	Position_t 							_lastPosition;
 	Quaternion_t 						_lastAttitudeQuaternion;
 	EulerAngle_t 						_lastAttitudeEuler;

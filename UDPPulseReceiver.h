@@ -6,14 +6,13 @@
 #include <thread>
 #include <atomic>
 
-//#include "TelemetryCache.h"
-
 class MavlinkSystem;
+class TelemetryCache;
 
 class UDPPulseReceiver
 {
 public:
-	UDPPulseReceiver(std::string localIp, int localPort, MavlinkSystem* mavlink/*, TelemetryCache& telemetryCache */);
+	UDPPulseReceiver(std::string localIp, int localPort, MavlinkSystem* mavlink, TelemetryCache* telemetryCache);
 	~UDPPulseReceiver();
 
 	void start	(void);
@@ -29,5 +28,5 @@ private:
     int 							_localPort;
     int 							_fdSocket	{-1};
     MavlinkSystem*					_mavlink;
-	//TelemetryCache&					_telemetryCache;
+	TelemetryCache*					_telemetryCache;
 };
