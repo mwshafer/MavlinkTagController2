@@ -95,6 +95,7 @@ void UDPPulseReceiver::_receive()
             double group_snr;
             double detection_status;
             double confirmed_status;
+            double noise_psd;
         } UDPPulseInfo_T;
 
         UDPPulseInfo_T buffer[sizeof(UDPPulseInfo_T) * 10];
@@ -139,14 +140,16 @@ void UDPPulseReceiver::_receive()
             pulseInfo.orientation_y                 = telemetry.attitudeQuaternion.y;
             pulseInfo.orientation_z                 = telemetry.attitudeQuaternion.z;
             pulseInfo.orientation_w                 = telemetry.attitudeQuaternion.w;
+            pulseInfo.noise_psd                     = udpPulseInfo.noise_psd;
 
             if (pulseInfo.frequency_hz == 0) {
                 logInfo() << "HEARTBEAT from Detector" << pulseInfo.tag_id;
             } else {
-                std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f seq_counter: %8u freq: %9u yaw/alt: %4.0f/%3.0f",
+                std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f noise_psd: %5.1f seq_counter: %8u freq: %9u yaw/alt: %4.0f/%3.0f",
                                                 pulseInfo.confirmed_status,
                                                 pulseInfo.tag_id,
                                                 pulseInfo.snr,
+                                                pulseInfo.noise_psd,
                                                 pulseInfo.group_seq_counter,
                                                 pulseInfo.frequency_hz,
                                                 telemetry.attitudeEuler.yawDegrees,
