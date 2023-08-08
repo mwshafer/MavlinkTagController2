@@ -145,9 +145,10 @@ void UDPPulseReceiver::_receive()
             if (pulseInfo.frequency_hz == 0) {
                 logInfo() << "HEARTBEAT from Detector" << pulseInfo.tag_id;
             } else {
-                std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f noise_psd: %5.1f seq_counter: %8u freq: %9u yaw/alt: %4.0f/%3.0f",
+                std::string pulseStatus = formatString("Conf: %u Id: %2u stft_score: %5.1f snr: %5.1f noise_psd: %5.1f seq_counter: %8u freq: %9u yaw/alt: %4.0f/%3.0f",
                                                 pulseInfo.confirmed_status,
                                                 pulseInfo.tag_id,
+                                                pulseInfo.stft_score,
                                                 pulseInfo.snr,
                                                 pulseInfo.noise_psd,
                                                 pulseInfo.group_seq_counter,
