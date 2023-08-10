@@ -68,7 +68,8 @@ bool Connection::_parseMavlinkBuffer(uint8_t* buffer, size_t cBuffer)
 						if (message.sysid == _sysidGcs) {
 							_lastReceivedHeartbeatAutopilotMSecs = millis_now();
 						}
-					} else {
+					} else if (message.sysid == 255) {
+						// We were getting strange GCS connections on other sysids, so we only accept sysid 255 to prevent
 						logInfo() << "Found gcs - sysid:" << message.sysid;
 						_gcsFound = true;
 						_sysidGcs = message.sysid;
