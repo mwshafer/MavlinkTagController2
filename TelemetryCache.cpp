@@ -1,10 +1,13 @@
 #include "TelemetryCache.h"
 #include "MavlinkSystem.h"
+#include "log.h"
 
 #include <functional>
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <ctime>
+#include <time.h>
 
 TelemetryCache::TelemetryCache(MavlinkSystem* mavlink)
     : _mavlink(mavlink)
@@ -19,16 +22,18 @@ TelemetryCache::TelemetryCache(MavlinkSystem* mavlink)
                 std::lock_guard<std::mutex> lock(_telemetryCacheMutex);
                 TelemetryCacheEntry_t       entry;
 
-                auto    timeSince      = std::chrono::system_clock::now().time_since_epoch();
-                double  timeSinceSecs  = std::chrono::duration_cast<std::chrono::seconds>(timeSince).count();
+                auto    timeSince       = std::chrono::system_clock::now().time_since_epoch();
+                auto    timeSinceMSecs  = std::chrono::duration_cast<std::chrono::milliseconds>(timeSince).count();
+                double  timeSinceSecs   = timeSinceMSecs / 1000.0;
 
                 entry.timeInSeconds         =  timeSinceSecs;
                 entry.position              = _lastPosition;
                 entry.attitudeQuaternion    = _lastAttitudeQuaternion;
                 entry.attitudeEuler         = _lastAttitudeEuler;
                 _telemetryCache.push_back(entry);
+                _pruneTelemetryCache();
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
     }).detach();
 }
@@ -99,13 +104,17 @@ TelemetryCache::TelemetryCacheEntry_t TelemetryCache::telemetryForTime(double ti
 {
     std::lock_guard<std::mutex>     lock            (_telemetryCacheMutex);
     TelemetryCacheEntry_t           bestEntry       { };
-    double                          bestDiffMSecs   = 0.0;
+    double                          bestDiffMSecs   = -1;
+
+    // Hack to convert matlab local time to gmt
+    //timeInSeconds += 7 * 60 * 60;
 
     // Find the closest matching entry in the cache
     for (auto entry : _telemetryCache) {
-        double  entryDiffMSecs  = timeInSeconds - entry.timeInSeconds;
 
-        if (bestDiffMSecs == 0.0) {
+        double  entryDiffMSecs  = std::fabs(timeInSeconds - entry.timeInSeconds);
+
+        if (bestDiffMSecs < 0) {
             bestDiffMSecs = entryDiffMSecs;
         } else {
             if (entryDiffMSecs < bestDiffMSecs) {
@@ -116,4 +125,24 @@ TelemetryCache::TelemetryCacheEntry_t TelemetryCache::telemetryForTime(double ti
     }
 
     return bestEntry;
+}
+
+void TelemetryCache::_pruneTelemetryCache()
+{
+    auto    timeSince           = std::chrono::system_clock::now().time_since_epoch();
+    auto    nowMSecs            = std::chrono::duration_cast<std::chrono::milliseconds>(timeSince).count();
+    double  nowSecs             = nowMSecs / 1000.0;
+    double  maxIntraPulseSecs   = 5.0;
+    double  maxK                = 3.0;
+    double  pruneBeforeSecs     = nowSecs - (((maxK + 1) * maxIntraPulseSecs) * 2);
+
+    while (_telemetryCache.size() > 0) {
+        auto& entry = _telemetryCache.front();
+
+        if (entry.timeInSeconds < pruneBeforeSecs) {
+            _telemetryCache.pop_front();
+        } else {
+            break;
+        }
+    }
 }
