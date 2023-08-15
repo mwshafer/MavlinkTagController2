@@ -108,6 +108,15 @@ chmod +x TagTracker.AppImage
   * Update the TagInfo.txt to match you tag
   * Application Settings/Tags to set K, False Alarm and so forth
 
+## Setup rPi for UTC timezone
+
+* To work around a problem with timezone difference between matlab code and the controll you must set the rPi timezone to UTC
+* `sudo raspi-config`
+* Select `Localization Options`
+* Select `Timezone`
+* Select `None of the above`
+* Select `UTC`
+
 ## Setup rPi to start MavlinkTagController at boot
 
 * run `crontab -e'
