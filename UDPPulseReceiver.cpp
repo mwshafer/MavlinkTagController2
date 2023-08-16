@@ -143,7 +143,6 @@ void UDPPulseReceiver::_receive()
                 pulseInfo.orientation_x                 = telemetry.attitudeEuler.rollDegrees;
                 pulseInfo.orientation_y                 = telemetry.attitudeEuler.pitchDegrees;
                 pulseInfo.orientation_z                 = telemetry.attitudeEuler.yawDegrees;
-                pulseInfo.orientation_w                 = telemetry.attitudeQuaternion.w;
                 pulseInfo.noise_psd                     = udpPulseInfo.noise_psd;
 
                 std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f noise_psd: %5.1g freq: %9u lat/lon/yaw/alt: %3.6f/%3.6f/%4.0f/%3.0f",
