@@ -12,15 +12,15 @@
 TelemetryCache::TelemetryCache(MavlinkSystem* mavlink)
     : _mavlink(mavlink)
 {
-	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_GLOBAL_POSITION_INT, std::bind(&TelemetryCache::_positionCallback,           this, std::placeholders::_1));
-	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_ATTITUDE_QUATERNION, std::bind(&TelemetryCache::_attitudeQuaternionCallback, this, std::placeholders::_1));
+	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_GLOBAL_POSITION_INT,    std::bind(&TelemetryCache::_positionCallback, this, std::placeholders::_1));
+	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_ATTITUDE,               std::bind(&TelemetryCache::_attitudeCallback, this, std::placeholders::_1));
 
     std::thread([this]()
     {
         while (true) {
-            if (_havePosition && _haveAttitudeQuaternion && _haveAttitudeEuler) {
+            if (_havePosition && _haveAttitudeEuler) {
                 std::lock_guard<std::mutex> lock(_telemetryCacheMutex);
-                TelemetryCacheEntry_t       entry;
+                TelemetryCacheEntry_t       entry {};
 
                 auto    timeSince       = std::chrono::system_clock::now().time_since_epoch();
                 auto    timeSinceMSecs  = std::chrono::duration_cast<std::chrono::milliseconds>(timeSince).count();
@@ -28,7 +28,7 @@ TelemetryCache::TelemetryCache(MavlinkSystem* mavlink)
 
                 entry.timeInSeconds         =  timeSinceSecs;
                 entry.position              = _lastPosition;
-                entry.attitudeQuaternion    = _lastAttitudeQuaternion;
+                //entry.attitudeQuaternion    = _lastAttitudeQuaternion;
                 entry.attitudeEuler         = _lastAttitudeEuler;
                 _telemetryCache.push_back(entry);
                 _pruneTelemetryCache();
@@ -79,24 +79,25 @@ TelemetryCache::EulerAngle_t TelemetryCache::_toEulerAngleFromQuaternion(Telemet
     return eulerAngle;
 }
 
-void TelemetryCache::_attitudeQuaternionCallback(const mavlink_message_t& message)
+float TelemetryCache::_radiansToDegrees(float radians)
+{
+    return radians * (180.0f / static_cast<float>(M_PI));
+}
+
+void TelemetryCache::_attitudeCallback(const mavlink_message_t& message)
 {
     // only accept the attitude message from the vehicle's flight controller
     if (message.sysid != _mavlink->ourSystemId() || message.compid != MAV_COMP_ID_AUTOPILOT1) {
         return;
     }
 
-    mavlink_attitude_quaternion_t attitudeQuaternion;
-    mavlink_msg_attitude_quaternion_decode(&message, &attitudeQuaternion);
+    mavlink_attitude_t attitude;
+    mavlink_msg_attitude_decode(&message, &attitude);
 
-    _lastAttitudeQuaternion.w = attitudeQuaternion.q1;
-    _lastAttitudeQuaternion.x = attitudeQuaternion.q2;
-    _lastAttitudeQuaternion.y = attitudeQuaternion.q3;
-    _lastAttitudeQuaternion.z = attitudeQuaternion.q4;
+    _lastAttitudeEuler.rollDegrees  = _radiansToDegrees(attitude.roll);
+    _lastAttitudeEuler.pitchDegrees = _radiansToDegrees(attitude.pitch);
+    _lastAttitudeEuler.yawDegrees   = _radiansToDegrees(attitude.yaw);
 
-    _lastAttitudeEuler = _toEulerAngleFromQuaternion(_lastAttitudeQuaternion);
-
-    _haveAttitudeQuaternion = true;
     _haveAttitudeEuler      = true;
 }
 

@@ -140,9 +140,9 @@ void UDPPulseReceiver::_receive()
                 pulseInfo.position_x                    = telemetry.position.latitude;
                 pulseInfo.position_y                    = telemetry.position.longitude;
                 pulseInfo.position_z                    = telemetry.position.relativeAltitude;
-                pulseInfo.orientation_x                 = telemetry.attitudeQuaternion.x;
-                pulseInfo.orientation_y                 = telemetry.attitudeQuaternion.y;
-                pulseInfo.orientation_z                 = telemetry.attitudeQuaternion.z;
+                pulseInfo.orientation_x                 = telemetry.attitudeEuler.rollDegrees;
+                pulseInfo.orientation_y                 = telemetry.attitudeEuler.pitchDegrees;
+                pulseInfo.orientation_z                 = telemetry.attitudeEuler.yawDegrees;
                 pulseInfo.orientation_w                 = telemetry.attitudeQuaternion.w;
                 pulseInfo.noise_psd                     = udpPulseInfo.noise_psd;
 
