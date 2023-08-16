@@ -44,10 +44,11 @@ public:
 
 private:
 	void 			_positionCallback			(const mavlink_message_t& message);
-	void 			_attitudeQuaternionCallback	(const mavlink_message_t& message);
+	void 			_attitudeCallback			(const mavlink_message_t& message);
 	float 			_toDegFromRad				(float rad);
 	EulerAngle_t 	_toEulerAngleFromQuaternion	(Quaternion_t quaternion);
 	void			_pruneTelemetryCache		();
+	float			_radiansToDegrees			(float radians);
 
 	MavlinkSystem* 						_mavlink;
 	Position_t 							_lastPosition;
