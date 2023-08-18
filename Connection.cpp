@@ -1,5 +1,5 @@
 #include "Connection.h"
-#include "helpers.h"
+#include "timeHelpers.h"
 #include "log.h"
 #include "MessageParser.h"
 
@@ -29,7 +29,7 @@ void Connection::stop()
 
 void Connection::_checkForLostHeartbeats()
 {
-	if (_started && _autopilotFound && _lastReceivedHeartbeatAutopilotMSecs + HEARTBEAT_INTERVAL_MSECS < millis_now()) {
+	if (_started && _autopilotFound && _lastReceivedHeartbeatAutopilotMSecs + HEARTBEAT_INTERVAL_MSECS < msecsSinceEpoch()) {
 		_heartbeatsLost = true;
 		logInfo() << "Heartbeats lost from autopilot";
 	}
@@ -51,12 +51,12 @@ bool Connection::_parseMavlinkBuffer(uint8_t* buffer, size_t cBuffer)
 							_heartbeatsLost = false;
 							logInfo() << "Heartbeats regained from autopilot";
 						}
-						_lastReceivedHeartbeatAutopilotMSecs = millis_now();
+						_lastReceivedHeartbeatAutopilotMSecs = msecsSinceEpoch();
 					}
 				} else {
 					_autopilotFound = true;
 					_sysidAutopilot = message.sysid;
-					_lastReceivedHeartbeatAutopilotMSecs = millis_now();
+					_lastReceivedHeartbeatAutopilotMSecs = msecsSinceEpoch();
 					logInfo() << "Found autopilot - sysid:" << message.sysid;
 				}
 			} else {
@@ -66,14 +66,14 @@ bool Connection::_parseMavlinkBuffer(uint8_t* buffer, size_t cBuffer)
 				if (heartbeat.type == MAV_TYPE_GCS) {
 					if (_gcsFound) {
 						if (message.sysid == _sysidGcs) {
-							_lastReceivedHeartbeatAutopilotMSecs = millis_now();
+							_lastReceivedHeartbeatAutopilotMSecs = msecsSinceEpoch();
 						}
 					} else if (message.sysid == 255) {
 						// We were getting strange GCS connections on other sysids, so we only accept sysid 255 to prevent
 						logInfo() << "Found gcs - sysid:" << message.sysid;
 						_gcsFound = true;
 						_sysidGcs = message.sysid;
-						_lastReceivedHeartbeatGcsMSecs = millis_now();
+						_lastReceivedHeartbeatGcsMSecs = msecsSinceEpoch();
 					}
 					
 				}
@@ -110,7 +110,7 @@ void Connection::_receiveThreadMain()
 #endif
 
 			// Check if it's time to send a heartbeat. Only send heartbeats if we're still connected to an autopilot
-			auto now = millis_now();
+			auto now = msecsSinceEpoch();
 			if (_started && _autopilotFound && now > _last_sent_heartbeat_ms + Connection::HEARTBEAT_INTERVAL_MSECS) {
 				_mavlink->sendHeartbeat();
 				_last_sent_heartbeat_ms = now;

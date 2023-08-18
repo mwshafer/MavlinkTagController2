@@ -1,6 +1,7 @@
 #include "TelemetryCache.h"
 #include "MavlinkSystem.h"
 #include "log.h"
+#include "timeHelpers.h"
 
 #include <functional>
 #include <thread>
@@ -12,25 +13,21 @@
 TelemetryCache::TelemetryCache(MavlinkSystem* mavlink)
     : _mavlink(mavlink)
 {
-	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_GLOBAL_POSITION_INT,    std::bind(&TelemetryCache::_positionCallback, this, std::placeholders::_1));
-	_mavlink->subscribeToMessage(MAVLINK_MSG_ID_ATTITUDE,               std::bind(&TelemetryCache::_attitudeCallback, this, std::placeholders::_1));
-
     std::thread([this]()
     {
         while (true) {
-            if (_havePosition && _haveAttitudeEuler) {
+            Telemetry& telemetry = _mavlink->telemetry();
+
+            if (telemetry.lastPosition().has_value() && telemetry.lastAttitudeEuler().has_value()) {
                 std::lock_guard<std::mutex> lock(_telemetryCacheMutex);
                 TelemetryCacheEntry_t       entry {};
 
-                auto    timeSince       = std::chrono::system_clock::now().time_since_epoch();
-                auto    timeSinceMSecs  = std::chrono::duration_cast<std::chrono::milliseconds>(timeSince).count();
-                double  timeSinceSecs   = timeSinceMSecs / 1000.0;
+                entry.timeInSeconds         = secondsSinceEpoch();
+                entry.position              = telemetry.lastPosition().value();
+                entry.attitudeEuler         = telemetry.lastAttitudeEuler().value();
 
-                entry.timeInSeconds         =  timeSinceSecs;
-                entry.position              = _lastPosition;
-                //entry.attitudeQuaternion    = _lastAttitudeQuaternion;
-                entry.attitudeEuler         = _lastAttitudeEuler;
                 _telemetryCache.push_back(entry);
+
                 _pruneTelemetryCache();
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -42,73 +39,11 @@ TelemetryCache::~TelemetryCache()
 {
 }
 
-void TelemetryCache::_positionCallback(const mavlink_message_t& message)
-{
-    mavlink_global_position_int_t globalPositionInt;
-    mavlink_msg_global_position_int_decode(&message, &globalPositionInt);
-
-    // ArduPilot sends bogus GLOBAL_POSITION_INT messages with lat/lat 0/0 even when it has no gps signal
-    // Apparently, this is in order to transport relative altitude information.
-    if (globalPositionInt.lat == 0 && globalPositionInt.lon == 0) {
-        return;
-    }
-
-    _lastPosition.latitude          = globalPositionInt.lat  / (double)1E7;
-    _lastPosition.longitude         = globalPositionInt.lon  / (double)1E7;
-    _lastPosition.relativeAltitude  = globalPositionInt.relative_alt * 1e-3f;
-
-    _havePosition = true;
-}
-
-float TelemetryCache::_toDegFromRad(float rad)
-{
-    return 180.0f / static_cast<float>(M_PI) * rad;
-}
-
-TelemetryCache::EulerAngle_t TelemetryCache::_toEulerAngleFromQuaternion(TelemetryCache::Quaternion_t quaternion)
-{
-    auto& q = quaternion;
-
-    EulerAngle_t eulerAngle;
-    eulerAngle.rollDegrees = _toDegFromRad(
-        atan2f(2.0f * (q.w * q.x + q.y * q.z), 1.0f - 2.0f * (q.x * q.x + q.y * q.y)));
-    eulerAngle.pitchDegrees = _toDegFromRad(asinf(2.0f * (q.w * q.y - q.z * q.x)));
-    eulerAngle.yawDegrees = _toDegFromRad(
-        atan2f(2.0f * (q.w * q.z + q.x * q.y), 1.0f - 2.0f * (q.y * q.y + q.z * q.z)));
-
-    return eulerAngle;
-}
-
-float TelemetryCache::_radiansToDegrees(float radians)
-{
-    return radians * (180.0f / static_cast<float>(M_PI));
-}
-
-void TelemetryCache::_attitudeCallback(const mavlink_message_t& message)
-{
-    // only accept the attitude message from the vehicle's flight controller
-    if (message.sysid != _mavlink->ourSystemId() || message.compid != MAV_COMP_ID_AUTOPILOT1) {
-        return;
-    }
-
-    mavlink_attitude_t attitude;
-    mavlink_msg_attitude_decode(&message, &attitude);
-
-    _lastAttitudeEuler.rollDegrees  = _radiansToDegrees(attitude.roll);
-    _lastAttitudeEuler.pitchDegrees = _radiansToDegrees(attitude.pitch);
-    _lastAttitudeEuler.yawDegrees   = _radiansToDegrees(attitude.yaw);
-
-    _haveAttitudeEuler      = true;
-}
-
 TelemetryCache::TelemetryCacheEntry_t TelemetryCache::telemetryForTime(double timeInSeconds)
 {
     std::lock_guard<std::mutex>     lock            (_telemetryCacheMutex);
     TelemetryCacheEntry_t           bestEntry       { };
     double                          bestDiffMSecs   = -1;
-
-    // Hack to convert matlab local time to gmt
-    //timeInSeconds += 7 * 60 * 60;
 
     // Find the closest matching entry in the cache
     for (auto entry : _telemetryCache) {

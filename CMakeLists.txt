@@ -25,6 +25,9 @@ add_executable(MavlinkTagController2
     MessageParser.h
     SerialConnection.cpp SerialConnection.h
     UdpConnection.cpp UdpConnection.h
+    Telemetry.cpp Telemetry.h
+    PulseSimulator.cpp PulseSimulator.h
+    timeHelpers.cpp timeHelpers.h
 )
 
 target_include_directories(MavlinkTagController2
