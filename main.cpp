@@ -4,6 +4,7 @@
 #include "TunnelProtocol.h"
 #include "TelemetryCache.h"
 #include "MavlinkSystem.h"
+#include "PulseSimulator.h"
 
 #include <chrono>
 #include <cstdint>
@@ -19,9 +20,15 @@ int main(int argc, char** argv)
     // Check that TunnelProtocol hasn't exceed limits
     static_assert(TunnelProtocolValidateSizes, "TunnelProtocolValidateSizes failed");
 
+    bool simulatePulse = false;
 	std::string connectionUrl = "udp://127.0.0.1:14540";    // default to SITL
     if (argc == 2) {
-        connectionUrl = argv[1];
+        if (strcmp(argv[1], "--simulate-pulse") == 0) {
+			logInfo() << "Simulating pulses";
+            simulatePulse = true;
+        } else {
+            connectionUrl = argv[1];
+        }
     }
     logInfo() << "Connecting to" << connectionUrl;
 
@@ -42,6 +49,11 @@ int main(int argc, char** argv)
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 
+	PulseSimulator* pulseSimulator = nullptr;
+	if (simulatePulse) {
+		pulseSimulator = new PulseSimulator(mavlink);
+	}
+
 	bool tunnelHeartbeatsStarted = false;
 	while (true) {
 		if (!tunnelHeartbeatsStarted && mavlink->gcsSystemId().has_value()) {
@@ -54,28 +66,9 @@ int main(int argc, char** argv)
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 
+	delete pulseSimulator;
+
 	logInfo() << "Exiting...";
-
-#if 0
-    auto mavlinkPassthrough     = MavlinkPassthrough            { qgcSystem };
-    auto outgoingMessageQueue   = MavlinkOutgoingMessageQueue   { mavlinkPassthrough };
-    auto telemetryCache         = TelemetryCache                { mavlink };
-    auto udpPulseReceiver       = UDPPulseReceiver              { std::string("127.0.0.1"), 50000, outgoingMessageQueue, telemetryCache };
-    auto ftpServer              = Ftp                           { autopilotSystem };
-    auto commandHandler         = CommandHandler                { *qgcSystem, outgoingMessageQueue };
-
-    ftpServer.set_root_directory(getenv("HOME"));
-
-    udpPulseReceiver.start();
-    startHeartbeatSender(outgoingMessageQueue, 5000);
-
-    logInfo() << "Ready";
-    sendStatusText(outgoingMessageQueue, "MavlinkTagController Ready");
-
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-#endif
 
     return 0;
 }

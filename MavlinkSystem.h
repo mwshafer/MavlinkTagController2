@@ -9,6 +9,7 @@
 
 #include "ThreadSafeQueue.h"
 #include "MavlinkOutgoingMessageQueue.h"
+#include "Telemetry.h"
 
 #include <mavlink.h>
 
@@ -39,17 +40,18 @@ public:
 	void 					sendStatusText				(std::string&& message, MAV_SEVERITY severity = MAV_SEVERITY_INFO);
 	void 					sendTunnelMessage			(void* tunnelPayload, size_t tunnelPayloadSize);
 	void 					sendMessage					(const mavlink_message_t& message);
+	Telemetry& 				telemetry					() { return _telemetry; }
 
 private:
 	void _sendMessageOnConnection(const mavlink_message_t& message);
 
-	std::string _connectionUrl {};
-	MavlinkOutgoingMessageQueue _outgoingMessageQueue;
-
-	std::unique_ptr<Connection> _connection {};
-
-	std::mutex _subscriptions_mutex {};
 	std::unordered_map<uint16_t, MessageCallback> _message_subscriptions {}; // Mavlink message ID --> callback(mavlink_message_t)
+
+	std::string 				_connectionUrl {};
+	MavlinkOutgoingMessageQueue _outgoingMessageQueue;
+	std::unique_ptr<Connection> _connection {};
+	std::mutex 					_subscriptions_mutex {};
+	Telemetry 					_telemetry;
 
 	friend class MavlinkOutgoingMessageQueue;
 };
