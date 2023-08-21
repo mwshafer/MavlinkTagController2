@@ -20,14 +20,23 @@ int main(int argc, char** argv)
     // Check that TunnelProtocol hasn't exceed limits
     static_assert(TunnelProtocolValidateSizes, "TunnelProtocolValidateSizes failed");
 
-    bool simulatePulse = false;
+    bool simulatePulse 		= false;
+	uint32_t antennaOffset	= 0;
 	std::string connectionUrl = "udp://127.0.0.1:14540";    // default to SITL
     if (argc == 2) {
-        if (strcmp(argv[1], "--simulate-pulse") == 0) {
-			logInfo() << "Simulating pulses";
+		std::string strArg = argv[1];
+		std::string simulatePulsePrefix = "--simulate-pulse:";
+        if (strArg.starts_with(simulatePulsePrefix)) {
+			std::string strArg = argv[1];
+			strArg.erase(strArg.find(simulatePulsePrefix), simulatePulsePrefix.length());
+
             simulatePulse = true;
+			antennaOffset = std::stoi(strArg);
+
+			logInfo() << "Simulating pulses - antenna offset:" << antennaOffset;
+
         } else {
-            connectionUrl = argv[1];
+            connectionUrl = strArg;
         }
     }
     logInfo() << "Connecting to" << connectionUrl;
@@ -51,7 +60,7 @@ int main(int argc, char** argv)
 
 	PulseSimulator* pulseSimulator = nullptr;
 	if (simulatePulse) {
-		pulseSimulator = new PulseSimulator(mavlink);
+		pulseSimulator = new PulseSimulator(mavlink, antennaOffset);
 	}
 
 	bool tunnelHeartbeatsStarted = false;
