@@ -12,10 +12,11 @@
 class PulseSimulator
 {
 public:
-	PulseSimulator(MavlinkSystem* mavlink);
+	PulseSimulator(MavlinkSystem* mavlink, uint32_t antennaOffset);
 
 private:
-	double _snrFromYaw(double yawDegrees);
+	double _snrFromYaw(double vehicleYawDegrees);
 
-	MavlinkSystem* _mavlink {}; 
+	MavlinkSystem* 	_mavlink {}; 
+	uint32_t 		_antennaOffset {};
 };

@@ -243,8 +243,8 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             }
         }
 
-        std::string startedStr = formatString("All processes started at center hz: %u", startDetection.radio_center_frequency_hz);
-        _mavlink->sendStatusText(startedStr.c_str(), MAV_SEVERITY_ALERT);
+        std::string startedStr = formatString("#All processes started at center hz: %.3f", (double)startDetection.radio_center_frequency_hz / 1000000.0);
+        _mavlink->sendStatusText(startedStr.c_str(), MAV_SEVERITY_INFO);
 
         _detectorsRunning = true;
     }).detach();

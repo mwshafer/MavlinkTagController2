@@ -5,8 +5,9 @@
 #include "formatString.h"
 #include "log.h"
 
-PulseSimulator::PulseSimulator(MavlinkSystem* mavlink)
-	: _mavlink(mavlink)
+PulseSimulator::PulseSimulator(MavlinkSystem* mavlink, uint32_t antennaOffset)
+	: _mavlink      (mavlink)
+    , _antennaOffset(antennaOffset)
 {
     std::thread([this]()
     {
@@ -57,7 +58,7 @@ PulseSimulator::PulseSimulator(MavlinkSystem* mavlink)
                     pulseInfo.start_time_seconds            = currentTimeInSeconds - (i * intraPulseSeconds);
                     pulseInfo.group_ind                     = i + 1;
 
-                    std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f noise_psd: %5.1g freq: %9u lat/lon/yaw/alt: %3.6f/%3.6f/%4.0f/%3.0f",
+                    std::string pulseStatus = formatString("Conf: %u Id: %2u snr: %5.1f noise_psd: %5.1g freq: %9u lat/lon/yaw/alt: %3.6f %3.6f %4.0f %3.0f",
                                                     pulseInfo.confirmed_status,
                                                     pulseInfo.tag_id,
                                                     pulseInfo.snr,
@@ -78,16 +79,18 @@ PulseSimulator::PulseSimulator(MavlinkSystem* mavlink)
     }).detach();
 }
 
-double PulseSimulator::_snrFromYaw(double yawDegrees)
+double PulseSimulator::_snrFromYaw(double vehicleYawDegrees)
 {
     double maxSnr = 60.0;
 
-    if (yawDegrees < 0) {
-        yawDegrees += 360.0;
+    double antennaYawDegrees = vehicleYawDegrees + _antennaOffset;
+
+    if (antennaYawDegrees < 0) {
+        antennaYawDegrees += 360.0;
     }
-    if (yawDegrees > 180.0) {
-        yawDegrees = 180.0 - (yawDegrees - 180.0);
+    if (antennaYawDegrees > 180.0) {
+        antennaYawDegrees = 180.0 - (antennaYawDegrees - 180.0);
     }
 
-    return (yawDegrees / 180.0) * maxSnr;
+    return (antennaYawDegrees / 180.0) * maxSnr;
 }
