@@ -10,6 +10,7 @@
 #include "ThreadSafeQueue.h"
 #include "MavlinkOutgoingMessageQueue.h"
 #include "Telemetry.h"
+#include "TunnelProtocol.h"
 
 #include <mavlink.h>
 
@@ -41,6 +42,8 @@ public:
 	void 					sendTunnelMessage			(void* tunnelPayload, size_t tunnelPayloadSize);
 	void 					sendMessage					(const mavlink_message_t& message);
 	Telemetry& 				telemetry					() { return _telemetry; }
+	uint16_t 				heartbeatStatus				() const { return _heartbeatStatus; }
+	void					setHeartbeatStatus			(uint16_t heartbeatStatus) { _heartbeatStatus = heartbeatStatus; }
 
 private:
 	void _sendMessageOnConnection(const mavlink_message_t& message);
@@ -52,6 +55,7 @@ private:
 	std::unique_ptr<Connection> _connection {};
 	std::mutex 					_subscriptions_mutex {};
 	Telemetry 					_telemetry;
+	uint16_t					_heartbeatStatus { HEARTBEAT_STATUS_IDLE };
 
 	friend class MavlinkOutgoingMessageQueue;
 };

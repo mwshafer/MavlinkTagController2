@@ -51,17 +51,14 @@ bool CommandHandler::_handleStartTags(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    memcpy(&startTagsInfo, tunnel.payload, sizeof(startTagsInfo));
-
-    logDebug() << "_handleStartTags sdr_type:_receivingTags:_detectorsRunnings" << startTagsInfo.sdr_type << _receivingTags << _detectorsRunning;
-
-    if (_detectorsRunning) {
+    if (_mavlink->heartbeatStatus() != HEARTBEAT_STATUS_IDLE && _mavlink->heartbeatStatus() != HEARTBEAT_STATUS_HAS_TAGS) {
+        logError() << "CommandHandler::_handleStartTags ERROR - Controller in incorrect state for start tags - heartbeatStatus:" << _mavlink->heartbeatStatus();
         return false;
     }
 
-    if (_receivingTags) {
-        _mavlink->sendStatusText("Cancelling previous Start Tags sequence", MAV_SEVERITY_ALERT);
-    }
+    memcpy(&startTagsInfo, tunnel.payload, sizeof(startTagsInfo));
+
+    logDebug() << "_handleStartTags sdr_type" << startTagsInfo.sdr_type;
 
     _tagDatabase.clear();
     _receivingTags = true;
@@ -105,6 +102,9 @@ bool CommandHandler::_handleEndTags(void)
     }
 
     _receivingTags = false;
+    if (_tagDatabase.size() != 0) {
+        _mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_HAS_TAGS);
+    }
 
     std::thread([this]() {
         if (!_tagDatabase.writeDetectorConfigs(_receivingTagsSdrType)) {
@@ -141,16 +141,8 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    if (_receivingTags) {
-        _mavlink->sendStatusText("Start detection failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
-        return false;
-    }
-    if (_detectorsRunning) {
-         _mavlink->sendStatusText("Start detection failed. Detectors are already running.", MAV_SEVERITY_ALERT);
-        return false;
-    }
-    if (_tagDatabase.size() == 0) {
-         _mavlink->sendStatusText("Start detection failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
+    if (_mavlink->heartbeatStatus() != HEARTBEAT_STATUS_HAS_TAGS) {
+        logError() << "COMMAND_ID_START_DETECTION - ERROR: Start detection failed. Controller in incorrect state - heartbeatStatus" << _mavlink->heartbeatStatus();
         return false;
     }
 
@@ -246,7 +238,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         std::string startedStr = formatString("#All processes started at center hz: %.3f", (double)startDetection.radio_center_frequency_hz / 1000000.0);
         _mavlink->sendStatusText(startedStr.c_str(), MAV_SEVERITY_INFO);
 
-        _detectorsRunning = true;
+        _mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_DETECTING);
     }).detach();
 
     return true;
@@ -254,10 +246,10 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
 
 bool CommandHandler::_handleStopDetection(void)
 {
-    logDebug() << "_handleStopDetection _detectorsRunnings" << _detectorsRunning;
+    logDebug() << "COMMAND_ID_STOP_DETECTION heartbeatStatus" << _mavlink->heartbeatStatus();
 
-    if (!_detectorsRunning) {
-        _mavlink->sendStatusText("Detectors not running", MAV_SEVERITY_ALERT);
+    if (_mavlink->heartbeatStatus() != HEARTBEAT_STATUS_DETECTING) {
+        logError() << "COMMAND_ID_STOP_DETECTION called when not detecting";
         return false;
     }
 
@@ -266,10 +258,10 @@ bool CommandHandler::_handleStopDetection(void)
             process->stop();
         }
         _processes.clear();
-        _detectorsRunning = false;
         delete _airspyPipe;
         _airspyPipe = NULL;
-        _mavlink->sendStatusText("All processes stopped.", MAV_SEVERITY_ALERT);
+        _mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_HAS_TAGS);
+        _mavlink->sendStatusText("#Detectors stopped", MAV_SEVERITY_INFO);
     }).detach();
 
     return true;
@@ -277,23 +269,15 @@ bool CommandHandler::_handleStopDetection(void)
 
 bool CommandHandler::_handleRawCapture(const mavlink_tunnel_t& tunnel)
 {
-    logDebug() << "_handleRawCapture" << _detectorsRunning;
+    logDebug() << "_handleRawCapture heartbeatStatus" << _mavlink->heartbeatStatus();
 
     if (tunnel.payload_length != sizeof(RawCapture_t)) {
         logError() << "COMMAND_ID_RAW_CAPTURE - ERROR: Payload length incorrect expected:actual" << sizeof(RawCapture_t) << tunnel.payload_length;
         return false;
     }
 
-    if (_receivingTags) {
-        _mavlink->sendStatusText("Command failed. In the middle of tag receive sequence.", MAV_SEVERITY_ALERT);
-        return false;
-    }
-    if (_detectorsRunning) {
-        _mavlink->sendStatusText("Command failed. Detectors are already running.", MAV_SEVERITY_ALERT);
-        return false;
-    }
-    if (_tagDatabase.size() == 0) {
-        _mavlink->sendStatusText("Command failed. No tags sent to vehicle.", MAV_SEVERITY_ALERT);
+    if (_mavlink->heartbeatStatus() != HEARTBEAT_STATUS_HAS_TAGS) {
+        _mavlink->sendStatusText("Command failed. Controller in incorrect state", MAV_SEVERITY_ALERT);
         return false;
     }
 
@@ -326,8 +310,11 @@ bool CommandHandler::_handleRawCapture(const mavlink_tunnel_t& tunnel)
                                                     commandStr.c_str(), 
                                                     logPath.c_str(), 
                                                     MonitoredProcess::NoPipe,
-                                                    NULL);
+                                                    NULL,
+                                                    true /* rawCaptureProcess */);
         airspyProcess->start();
+
+        _mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_CAPTURE);
     }).detach();
 
     return true;

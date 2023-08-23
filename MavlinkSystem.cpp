@@ -171,7 +171,8 @@ void MavlinkSystem::startTunnelHeartbeatSender()
             TunnelProtocol::Heartbeat_t heartbeat;
 
             heartbeat.header.command    = COMMAND_ID_HEARTBEAT;
-            heartbeat.system_id         = HEARTBEAT_SYSTEM_MAVLINKCONTROLLER;
+            heartbeat.system_id         = HEARTBEAT_SYSTEM_ID_MAVLINKCONTROLLER;
+			heartbeat.status			= _heartbeatStatus;
 
             sendTunnelMessage(&heartbeat, sizeof(heartbeat));
 
