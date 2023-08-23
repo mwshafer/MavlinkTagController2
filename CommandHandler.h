@@ -35,7 +35,6 @@ private:
     TagDatabase                     _tagDatabase;
     bool                            _receivingTags          = false;
     uint32_t                        _receivingTagsSdrType;
-    bool                            _detectorsRunning       = false;
     char*                           _homePath               = NULL;
     std::vector<MonitoredProcess*>  _processes;
     uint                            _startCount             = 0;
