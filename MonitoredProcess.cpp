@@ -13,13 +13,15 @@ MonitoredProcess::MonitoredProcess(
 		const char* 					command, 
 		const char* 					logPath, 
 		IntermediatePipeType			intermediatePipeType,
-		bp::pipe* 						intermediatePipe)
+		bp::pipe* 						intermediatePipe,
+		bool							rawCaptureProcess)
 	: _mavlink				(mavlink)
 	, _name					(name)
 	, _command				(command)
 	, _logPath				(logPath)
 	, _intermediatePipeType	(intermediatePipeType)
 	, _intermediatePipe		(intermediatePipe)
+	, _rawCaptureProcess	(rawCaptureProcess)
 {
 
 }
@@ -50,6 +52,11 @@ void MonitoredProcess::_run(void)
 
 	logInfo() << statusStr << "'" << _command.c_str() << "' >" << _logPath.c_str();
 	_mavlink->sendStatusText(statusStr.c_str());
+
+	if (_rawCaptureProcess) {
+		statusStr = "#Capture started";
+		_mavlink->sendStatusText(statusStr.c_str());
+	}
 
 	std::filesystem::remove(_logPath);
 
@@ -93,14 +100,18 @@ void MonitoredProcess::_run(void)
 		statusStr.append(" ");
 	}
 	statusStr.append(_name);
+	logError() << statusStr;
+	_mavlink->sendStatusText(statusStr.c_str(), (result == 0 || _terminated) ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
+
+	if (_rawCaptureProcess) {
+		_mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_IDLE);
+		_mavlink->sendStatusText("#Capture complete", MAV_SEVERITY_INFO);
+	}
 
 	delete _childProcess;
 	_childProcess = NULL;
 
 	_terminated = false;
-
-	logError() << statusStr;
-	_mavlink->sendStatusText(statusStr.c_str(), result == 0 ? MAV_SEVERITY_INFO : MAV_SEVERITY_ERROR);
 
     delete this;   
 }

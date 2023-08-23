@@ -26,7 +26,8 @@ public:
 		const char* 					command, 
 		const char* 					logPath, 
 		IntermediatePipeType			intermediatePipeType,
-		bp::pipe* 						intermediatePipe);
+		bp::pipe* 						intermediatePipe,
+		bool							rawCaptureProcess = false);
 
 	void start 	(void);
 	void stop	(void);
@@ -43,4 +44,5 @@ private:
 	bool							_terminated		= false;
 	IntermediatePipeType			_intermediatePipeType;
 	bp::pipe*						_intermediatePipe;
+	bool							_rawCaptureProcess;
 };
