@@ -11,6 +11,7 @@ namespace bp = boost::process;
 
 class MavlinkSystem;
 class MonitoredProcess;
+class LogFileManager;
 
 class CommandHandler {
 public:
@@ -25,7 +26,7 @@ private:
     bool _handleStopDetection   (void);
     bool _handleRawCapture      (const mavlink_tunnel_t& tunnel);
     void _handleTunnelMessage   (const mavlink_message_t& message);
-    void _startDetector         (const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel);
+    void _startDetector         (LogFileManager* logFileManager, const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel);
 
     std::string _tunnelCommandIdToString    (uint32_t command);
     std::string _tunnelCommandResultToString(uint32_t result);
@@ -37,6 +38,5 @@ private:
     uint32_t                        _receivingTagsSdrType;
     char*                           _homePath               = NULL;
     std::vector<MonitoredProcess*>  _processes;
-    uint                            _startCount             = 0;
     bp::pipe*                       _airspyPipe             = NULL;
 };

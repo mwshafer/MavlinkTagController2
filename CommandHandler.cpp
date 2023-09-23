@@ -15,6 +15,7 @@
 #include "log.h"
 #include "channelizerTuner.h"
 #include "MavlinkSystem.h"
+#include "LogFileManager.h"
 
 #include <mavlink.h>
 
@@ -106,22 +107,16 @@ bool CommandHandler::_handleEndTags(void)
         _mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_HAS_TAGS);
     }
 
-    std::thread([this]() {
-        if (!_tagDatabase.writeDetectorConfigs(_receivingTagsSdrType)) {
-            logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
-            _mavlink->sendStatusText("Write Detector Configs failed", MAV_SEVERITY_ALERT);
-        }
-    }).detach();
-
     return true;
 }
 
-void CommandHandler::_startDetector(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel)
+void CommandHandler::_startDetector(LogFileManager* logFileManager, const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel)
 {
     std::string commandStr  = formatString("%s/repos/uavrt_detection/uavrt_detection %s",
                                 _homePath,
                                 _tagDatabase.detectorConfigFileName(tagInfo, secondaryChannel).c_str());
-    std::string logPath     = formatString("%s/detector.%d.%u.log", _homePath, tagInfo.id + (secondaryChannel ? 1 : 0), _startCount);
+    std::string root        = formatString("detector_%d", tagInfo.id + (secondaryChannel ? 1 : 0));
+    std::string logPath     = logFileManager->filename(root.c_str(), "log");
 
     MonitoredProcess* detectorProc = new MonitoredProcess(
                                                 _mavlink, 
@@ -146,18 +141,23 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         return false;
     }
 
-    std::thread([this, tunnel]() {
+    auto logFileManager = LogFileManager::instance();
+    logFileManager->detectorsStarted();
+    if (!_tagDatabase.writeDetectorConfigs(_receivingTagsSdrType)) {
+        logError() << "CommandHandler::_handleEndTags: writeDetectorConfigs failed";
+        _mavlink->sendStatusText("Write Detector Configs failed", MAV_SEVERITY_ALERT);
+    }
+
+    std::thread([this, tunnel, logFileManager]() {
         StartDetectionInfo_t    startDetection;
         std::string             commandStr;
         std::string             logPath;
         std::string             airspyChannelizeDir;
-        
 
- 
         memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
 
         logInfo() << "COMMAND_ID_START_DETECTION:";
-        logInfo() << "\t_startCount:"               << ++_startCount; 
+        logInfo() << "\tdetectorStartIndex:"        << logFileManager->detectorStartIndex(); 
         logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
         logInfo() << "\tsdr_type:"                  << startDetection.sdr_type; 
 
@@ -168,7 +168,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             airspyChannelizeDir = "airspy_channelize_mini";
 
             commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout", (double)startDetection.radio_center_frequency_hz / 1000000.0);
-            logPath     = formatString("%s/airspy_rx.%u.log", _homePath, _startCount);
+            logPath     = logFileManager->filename("airspy_rx", "log");
             MonitoredProcess* airspyProc = new MonitoredProcess(
                                                     _mavlink, 
                                                     "airspy_rx", 
@@ -179,7 +179,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             airspyProc->start();
             _processes.push_back(airspyProc);
 
-            logPath = formatString("%s/csdr-uavrt.%u.log", _homePath, _startCount);
+            logPath = logFileManager->filename("csdr-uavrt", "log");
             MonitoredProcess* csdrProc = new MonitoredProcess(
                                                     _mavlink, 
                                                     "csdr-uavrt", 
@@ -197,7 +197,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             airspyChannelizeDir = "airspy_channelize_hf";
 
             commandStr  = formatString("airspyhf_rx_udp -u 10000 -f %f -a 192000 -g on -l low", (double)startDetection.radio_center_frequency_hz / 1000000.0);
-            logPath     = formatString("%s/airspyhf_rx_udp.%u.log", _homePath, _startCount);
+            logPath     = logFileManager->filename("airspyhf_rx_udp", "log");
             MonitoredProcess* airspyProc = new MonitoredProcess(
                                                     _mavlink, 
                                                     "airspyhf_rx_udp", 
@@ -217,7 +217,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         }
 
         commandStr  = formatString("%s/repos/%s/airspy_channelize %s", _homePath, airspyChannelizeDir.c_str(), _tagDatabase.channelizerCommandLine().c_str());
-        logPath = formatString("%s/airspy_channelize.%u.log", _homePath, _startCount);
+        logPath = logFileManager->filename("airspy_channelize", "log");
         MonitoredProcess* channelizeProc = new MonitoredProcess(
                                                     _mavlink, 
                                                     "airspy_channelize", 
@@ -229,9 +229,9 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         _processes.push_back(channelizeProc);
 
         for (const TunnelProtocol::TagInfo_t& tagInfo: _tagDatabase) {
-            _startDetector(tagInfo, false /* secondaryChannel */);
+            _startDetector(logFileManager, tagInfo, false /* secondaryChannel */);
             if (tagInfo.intra_pulse2_msecs != 0) {
-                _startDetector(tagInfo, true /* secondaryChannel */);
+                _startDetector(logFileManager, tagInfo, true /* secondaryChannel */);
             }
         }
 
