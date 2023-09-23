@@ -1,6 +1,7 @@
 #include "TagDatabase.h"
 #include "log.h"
 #include "formatString.h"
+#include "LogFileManager.h"
 
 #include <algorithm>
 #include <numeric>
@@ -11,12 +12,14 @@
 
 std::string TagDatabase::detectorConfigFileName(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel) const
 {
-    return formatString("%s/detector.%d.config", getenv("HOME"), tagInfo.id + (secondaryChannel ? 1 : 0));
+    auto logFileManager = LogFileManager::instance();
+    auto root = formatString("detector_%d", tagInfo.id + (secondaryChannel ? 1 : 0));
+    return logFileManager->filename(root.c_str(), "config");
 }
 
 bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo, bool secondaryChannel, uint32_t sdrType) const
 {
-    const char* homePath = getenv("HOME");
+    auto logFileManager = LogFileManager::instance();
 
     std::string configPath  = detectorConfigFileName(tagInfo, secondaryChannel);
 
@@ -44,19 +47,21 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     } else {
         fprintf(fp, "Fs:\t1920\n");
     }
-    fprintf(fp, "tagFreqMHz:\t%f\n",                        tagFreqMHz);
-    fprintf(fp, "tp:\t%f\n",                                tagInfo.pulse_width_msecs / 1000.0);
-    fprintf(fp, "tip:\t%f\n",                               tip);
-    fprintf(fp, "tipu:\t%f\n",                              tagInfo.intra_pulse_uncertainty_msecs / 1000.0);
-    fprintf(fp, "tipj:\t%f\n",                              tagInfo.intra_pulse_jitter_msecs / 1000.0);
-    fprintf(fp, "K:\t%u\n",                                 tagInfo.k);
+    fprintf(fp, "tagFreqMHz:\t%f\n",                            tagFreqMHz);
+    fprintf(fp, "tp:\t%f\n",                                    tagInfo.pulse_width_msecs / 1000.0);
+    fprintf(fp, "tip:\t%f\n",                                   tip);
+    fprintf(fp, "tipu:\t%f\n",                                  tagInfo.intra_pulse_uncertainty_msecs / 1000.0);
+    fprintf(fp, "tipj:\t%f\n",                                  tagInfo.intra_pulse_jitter_msecs / 1000.0);
+    fprintf(fp, "K:\t%u\n",                                     tagInfo.k);
     fprintf(fp, "opMode:\tfreqSearchHardLock\n");
     fprintf(fp, "excldFreqs:\t[Inf, -Inf]\n");
-    fprintf(fp, "falseAlarmProb:\t%f\n",                    tagInfo.false_alarm_probability);
-    fprintf(fp, "dataRecordPath:\t%s/data_record.%d.bin\n", homePath, tagId);
+    fprintf(fp, "falseAlarmProb:\t%f\n",                        tagInfo.false_alarm_probability);
+    fprintf(fp, "dataRecordPath:\t%s/data_record_%d.%d.bin\n",  logFileManager->logDir().c_str(), tagId, logFileManager->detectorStartIndex());
+    fprintf(fp, "logPath:\t%s\n",                               logFileManager->logDir().c_str());
+    fprintf(fp, "startIndex:\t%d\n",                            logFileManager->detectorStartIndex());
     fprintf(fp, "ipCntrl:\t127.0.0.1\n");
     fprintf(fp, "portCntrl:\t30000\n");
-    fprintf(fp, "processedOuputPath:\t%s\n",                homePath);
+    fprintf(fp, "processedOuputPath:\t%s\n",                    logFileManager->logDir().c_str());
     fprintf(fp, "ros2enable:\tfalse\n");
     fprintf(fp, "startInRunState:\ttrue\n");
     fprintf(fp, "timeStamp:\t1646403180.469\n");

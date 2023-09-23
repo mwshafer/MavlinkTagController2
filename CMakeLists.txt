@@ -28,6 +28,7 @@ add_executable(MavlinkTagController2
     Telemetry.cpp Telemetry.h
     PulseSimulator.cpp PulseSimulator.h
     timeHelpers.cpp timeHelpers.h
+    LogFileManager.cpp LogFileManager.h
 )
 
 target_include_directories(MavlinkTagController2
