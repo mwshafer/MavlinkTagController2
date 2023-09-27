@@ -8,6 +8,9 @@ project(MavlinkTagController2)
 
 add_definitions("-Wall -Wextra -Wno-address-of-packed-member")
 
+set(Boost_USE_MULTITHREADED ON) 
+find_package( Boost REQUIRED COMPONENTS system filesystem )
+
 add_executable(MavlinkTagController2
     main.cpp
     channelizerTuner.cpp channelizerTuner.h
@@ -35,4 +38,9 @@ target_include_directories(MavlinkTagController2
     PRIVATE
     uavrt_interfaces/include/uavrt_interfaces
     mavlink/v2/common
+)
+
+target_link_libraries(MavlinkTagController2
+    PRIVATE
+    ${Boost_LIBRARIES}
 )
