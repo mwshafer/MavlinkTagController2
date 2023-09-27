@@ -16,7 +16,9 @@ private:
 	LogFileManager();
 	
 	int 		_detectorStartIndex = 0;
+	std::string _homeDir;
 	std::string _logDir;
 
-	static LogFileManager* _instance;
+	static LogFileManager* 	_instance;
+	static const char* 		_logDirPrefix;
 };
