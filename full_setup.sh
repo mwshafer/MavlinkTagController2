@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# wget https://raw.githubusercontent.com/DonLakeFlyer/MavlinkTagControllers/main/full_setup.sh
+# wget https://raw.githubusercontent.com/DonLakeFlyer/MavlinkTagController2/main/full_setup.sh
 
 echo "*** Install tools"
 sudo apt install build-essential git cmake build-essential libboost-all-dev airspy libfftw3-dev -y
