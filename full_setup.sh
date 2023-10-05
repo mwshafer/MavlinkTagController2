@@ -4,8 +4,7 @@ set -e
 # wget https://raw.githubusercontent.com/DonLakeFlyer/MavlinkTagController/main/full_setup.sh
 
 echo "*** Install tools"
-sudo apt install build-essential
-sudo apt install git cmake build-essential libboost-all-dev airspy libfftw3-dev -y
+sudo apt install build-essential git cmake build-essential libboost-all-dev airspy libfftw3-dev -y
 
 echo "*** Create repos directory"
 cd ~
