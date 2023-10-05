@@ -48,5 +48,5 @@ if [ ! -d uavrt_detection ]; then
 	git clone --recursive git@github.com:dynamic-and-active-systems-lab/uavrt_detection.git
 fi
 cd ~/repos/uavrt_detection
-git pull origin don-codegen
+git pull origin main
 make
