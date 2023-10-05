@@ -5,7 +5,7 @@ set -e
 
 echo "*** Install tools"
 sudo apt install build-essential git cmake build-essential libboost-all-dev airspy libfftw3-dev -y
-git config pull.rebase false
+git config --global pull.rebase false
 
 echo "*** Create repos directory"
 cd ~
