@@ -79,15 +79,24 @@ PulseSimulator::PulseSimulator(MavlinkSystem* mavlink, uint32_t antennaOffset)
     }).detach();
 }
 
+double PulseSimulator::_normalizeYaw(double yaw)
+{
+    if (yaw < 0) {
+        yaw += 360.0;
+    } else if (yaw >= 360) {
+        yaw -= 360.0;
+    }
+
+    return yaw;
+}
+
 double PulseSimulator::_snrFromYaw(double vehicleYawDegrees)
 {
-    double maxSnr = 60.0;
+    double maxSnr               = 60.0;
+    double antennaYawDegrees    = _normalizeYaw(_normalizeYaw(vehicleYawDegrees) + _normalizeYaw(_antennaOffset));
 
-    double antennaYawDegrees = vehicleYawDegrees + _antennaOffset;
+    logDebug() << _normalizeYaw(_normalizeYaw(vehicleYawDegrees) + _normalizeYaw(_antennaOffset)) << _normalizeYaw(vehicleYawDegrees) << _normalizeYaw(_antennaOffset);
 
-    if (antennaYawDegrees < 0) {
-        antennaYawDegrees += 360.0;
-    }
     if (antennaYawDegrees > 180.0) {
         antennaYawDegrees = 180.0 - (antennaYawDegrees - 180.0);
     }
