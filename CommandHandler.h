@@ -39,4 +39,5 @@ private:
     char*                           _homePath               = NULL;
     std::vector<MonitoredProcess*>  _processes;
     bp::pipe*                       _airspyPipe             = NULL;
+    std::string                     _airspyCmdLine;
 };
