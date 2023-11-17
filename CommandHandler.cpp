@@ -19,15 +19,32 @@
 
 #include <mavlink.h>
 
+#include <stdio.h>
+#include <filesystem>
+
 using namespace TunnelProtocol;
 
 CommandHandler::CommandHandler(MavlinkSystem* mavlink)
     : _mavlink              (mavlink)
     , _homePath             (getenv("HOME"))
+    , _airspyCmdLine        ("-h 21 -t 0")
 {
     using namespace std::placeholders;
-
     _mavlink->subscribeToMessage(MAVLINK_MSG_ID_TUNNEL, std::bind(&CommandHandler::_handleTunnelMessage, this, _1));
+
+    namespace fs = std::filesystem;
+
+    std::string configFileName = formatString("%s/airspy_cmdline.txt", _homePath);
+    fs::path path(configFileName);
+    if (fs::exists(path)) {
+        std::ifstream file(configFileName);
+        std::string str;
+        std::getline(file, str);
+        _airspyCmdLine = str;
+        logInfo() << "CommandHandler::CommandHandler - Using custom airspy command line:" << _airspyCmdLine;
+    } else {
+        logInfo() << "CommandHandler::CommandHandler - Using default airspy command line:" << _airspyCmdLine;
+    }
 }
 
 void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
@@ -167,7 +184,7 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
             _airspyPipe         = new bp::pipe();
             airspyChannelizeDir = "airspy_channelize_mini";
 
-            commandStr  = formatString("airspy_rx -f %f -a 3000000 -h 21 -t 0 -r /dev/stdout", (double)startDetection.radio_center_frequency_hz / 1000000.0);
+            commandStr  = formatString("airspy_rx -f %f -a 3000000 -r /dev/stdout %s", (double)startDetection.radio_center_frequency_hz / 1000000.0, _airspyCmdLine.c_str());
             logPath     = logFileManager->filename("airspy_rx", "log");
             MonitoredProcess* airspyProc = new MonitoredProcess(
                                                     _mavlink, 
