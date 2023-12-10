@@ -45,13 +45,15 @@ TelemetryCache::TelemetryCacheEntry_t TelemetryCache::telemetryForTime(double ti
     TelemetryCacheEntry_t           bestEntry       { };
     double                          bestDiffMSecs   = -1;
 
+    logDebug() << "telemetryForTime";
+
     // Find the closest matching entry in the cache
     for (auto entry : _telemetryCache) {
-
         double  entryDiffMSecs  = std::fabs(timeInSeconds - entry.timeInSeconds);
 
         if (bestDiffMSecs < 0) {
             bestDiffMSecs = entryDiffMSecs;
+            bestEntry = entry;
         } else {
             if (entryDiffMSecs < bestDiffMSecs) {
                 bestDiffMSecs = entryDiffMSecs;
