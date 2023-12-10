@@ -34,10 +34,25 @@ void LogFileManager::detectorsStarted()
         for (int i=10; i>=1; i--) {
             auto oldName = formatString("%s/%s_%d", _homeDir.c_str(), _logDirPrefix, i);
             auto newName = formatString("%s/%s_%d", _homeDir.c_str(), _logDirPrefix, i + 1);
+
+            if (bf::exists(newName, errorCode)) {
+                logDebug() << "Removing " << newName;
+                bf::remove_all(newName, errorCode);
+                if (errorCode) {
+                    logDebug() << "Failed to remove " << newName << ": " << errorCode.message();
+                }
+            }
+            
             bf::rename(oldName.c_str(), newName.c_str(), errorCode);
+            if (errorCode) {
+                logDebug() << "Failed to rename " << oldName << " to " << newName << ": " << errorCode.message();
+            }
         }
 
         bf::create_directory(_logDir.c_str(), errorCode);
+        if (errorCode) {
+            logDebug() << "Failed to create directory " << _logDir << ": " << errorCode.message();
+        }
     }
 }
 
