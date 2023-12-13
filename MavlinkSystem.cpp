@@ -186,7 +186,7 @@ void MavlinkSystem::_logCPUTemp()
 void MavlinkSystem::startTunnelHeartbeatSender()
 {
     std::thread heartbeatSenderThread([this]() {
-        uint32_t cpuWaitCount = 0;
+        int cpuWaitCount = 30;
 
         while (true) {
             TunnelProtocol::Heartbeat_t heartbeat;
@@ -197,8 +197,8 @@ void MavlinkSystem::startTunnelHeartbeatSender()
 
             sendTunnelMessage(&heartbeat, sizeof(heartbeat));
 
-            if (++cpuWaitCount == 30) {
-                cpuWaitCount = 0;
+            if (cpuWaitCount-- <= 0) {
+                cpuWaitCount = 30;
                 _logCPUTemp();
             }
 
