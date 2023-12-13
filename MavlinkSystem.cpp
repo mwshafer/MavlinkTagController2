@@ -4,8 +4,6 @@
 #include "SerialConnection.h"
 #include "TunnelProtocol.h"
 
-#include <wiringPi.h>
-
 #include <mutex>
 #include <fstream>
 
@@ -17,8 +15,6 @@ MavlinkSystem::MavlinkSystem(const std::string& connectionUrl)
 	// Force all output to Mavlink V2
 	mavlink_status_t* mavlinkStatus = mavlink_get_channel_status(0);
 	mavlinkStatus->flags &= ~MAVLINK_STATUS_FLAG_OUT_MAVLINK1;	
-    
-    wiringPiSetup();
 }
 
 MavlinkSystem::~MavlinkSystem()
@@ -169,7 +165,7 @@ std::optional<uint8_t> MavlinkSystem::gcsSystemId() const
 	}
 }
 
-void MavlinkSystem::_logTempAndVoltage()
+void MavlinkSystem::_logCPUTemp()
 {
     std::string         fileName = "/sys/class/thermal/thermal_zone0/temp";
     std::ifstream       stream;
@@ -184,7 +180,7 @@ void MavlinkSystem::_logTempAndVoltage()
     temp = temp / 1000;                 // convert float value to degree
     temp = roundf(temp * 100) / 100;    // round decimal to nearest  
 
-    logDebug() << "CPU Temperature" << temp << "°C" << "Voltage" << digitalRead(35);
+    logDebug() << "CPU Temperature: " << temp << "°C\n";    
 }
 
 void MavlinkSystem::startTunnelHeartbeatSender()
@@ -199,7 +195,7 @@ void MavlinkSystem::startTunnelHeartbeatSender()
 
             sendTunnelMessage(&heartbeat, sizeof(heartbeat));
 
-            _logTempAndVoltage();
+            _logCPUTemp();
 
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
