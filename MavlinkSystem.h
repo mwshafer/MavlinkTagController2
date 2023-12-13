@@ -47,6 +47,7 @@ public:
 
 private:
 	void _sendMessageOnConnection(const mavlink_message_t& message);
+    void _logCPUTemp();
 
 	std::unordered_map<uint16_t, MessageCallback> _message_subscriptions {}; // Mavlink message ID --> callback(mavlink_message_t)
 

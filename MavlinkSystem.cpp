@@ -5,6 +5,7 @@
 #include "TunnelProtocol.h"
 
 #include <mutex>
+#include <fstream>
 
 MavlinkSystem::MavlinkSystem(const std::string& connectionUrl)
 	: _connectionUrl		(connectionUrl)
@@ -164,6 +165,24 @@ std::optional<uint8_t> MavlinkSystem::gcsSystemId() const
 	}
 }
 
+void MavlinkSystem::_logCPUTemp()
+{
+    std::string         fileName = "/sys/class/thermal/thermal_zone0/temp";
+    std::ifstream       stream;
+    std::stringstream   buffer;
+    float               temp = 0.0;
+
+    stream.open(fileName);
+    buffer << stream.rdbuf();
+    stream.close();
+
+    temp = std::stof(buffer.str());     // convert string to float
+    temp = temp / 1000;                 // convert float value to degree
+    temp = roundf(temp * 100) / 100;    // round decimal to nearest  
+
+    logDebug() << "CPU Temperature: " << temp << "°C\n";    
+}
+
 void MavlinkSystem::startTunnelHeartbeatSender()
 {
     std::thread heartbeatSenderThread([this]() {
@@ -175,6 +194,8 @@ void MavlinkSystem::startTunnelHeartbeatSender()
 			heartbeat.status			= _heartbeatStatus;
 
             sendTunnelMessage(&heartbeat, sizeof(heartbeat));
+
+            _logCPUTemp();
 
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
