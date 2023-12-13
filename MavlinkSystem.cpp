@@ -180,7 +180,7 @@ void MavlinkSystem::_logCPUTemp()
     temp = temp / 1000;                 // convert float value to degree
     temp = roundf(temp * 100) / 100;    // round decimal to nearest  
 
-    logDebug() << "CPU Temperature: " << temp << "°C\n";    
+    logDebug() << "CPU Temperature: " << temp << "°C";    
 }
 
 void MavlinkSystem::startTunnelHeartbeatSender()
