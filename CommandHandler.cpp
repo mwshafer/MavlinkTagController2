@@ -174,7 +174,6 @@ bool CommandHandler::_handleStartDetection(const mavlink_tunnel_t& tunnel)
         memcpy(&startDetection, tunnel.payload, sizeof(startDetection));
 
         logInfo() << "COMMAND_ID_START_DETECTION:";
-        logInfo() << "\tdetectorStartIndex:"        << logFileManager->detectorStartIndex(); 
         logInfo() << "\tradio_center_frequency_hz:" << startDetection.radio_center_frequency_hz; 
         logInfo() << "\tsdr_type:"                  << startDetection.sdr_type; 
 
@@ -275,10 +274,15 @@ bool CommandHandler::_handleStopDetection(void)
             process->stop();
         }
         _processes.clear();
+
         delete _airspyPipe;
         _airspyPipe = NULL;
+
         _mavlink->setHeartbeatStatus(HEARTBEAT_STATUS_HAS_TAGS);
         _mavlink->sendStatusText("#Detectors stopped", MAV_SEVERITY_INFO);
+
+        auto logFileManager = LogFileManager::instance();
+        logFileManager->detectorsStopped();
     }).detach();
 
     return true;
