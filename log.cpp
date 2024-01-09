@@ -1,4 +1,7 @@
 #include "log.h"
+#include "LogFileManager.h"
+
+#include <fstream>
 
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
@@ -19,23 +22,25 @@ LogDetailed::LogDetailed(const char* filename, int filenumber)
 
 LogDetailed::~LogDetailed()
 {
+    _logMutex.lock();
+
+    std::stringstream sStream;
 
     switch (_log_level) {
         case LogLevel::Debug:
-            set_color(LogColor::Green);
+            set_color(LogColor::Green, sStream);
             break;
         case LogLevel::Info:
-            set_color(LogColor::Blue);
+            set_color(LogColor::Blue, sStream);
             break;
         case LogLevel::Warn:
-            set_color(LogColor::Yellow);
+            set_color(LogColor::Yellow, sStream);
             break;
         case LogLevel::Err:
-            set_color(LogColor::Red);
+            set_color(LogColor::Red, sStream);
             break;
     }
 
-    _logMutex.lock();
 
     // Time output taken from:
     // https://stackoverflow.com/questions/16357999#answer-16358264
@@ -44,53 +49,58 @@ LogDetailed::~LogDetailed()
     struct tm* timeinfo = localtime(&rawtime);
     char time_buffer[10]{}; // We need 8 characters + \0
     strftime(time_buffer, sizeof(time_buffer), "%I:%M:%S", timeinfo);
-    std::cout << "[" << time_buffer;
+    sStream << "[" << time_buffer;
 
     switch (_log_level) {
         case LogLevel::Debug:
-            std::cout << "|D] ";
+            sStream << "|D] ";
             break;
         case LogLevel::Info:
-            std::cout << "|I] ";
+            sStream << "|I] ";
             break;
         case LogLevel::Warn:
-            std::cout << "|W] ";
+            sStream << "|W] ";
             break;
         case LogLevel::Err:
-            std::cout << "|E] ";
+            sStream << "|E] ";
             break;
     }
 
-    set_color(LogColor::Reset);
+    set_color(LogColor::Reset, sStream);
 
-    std::cout << _s.str();
-    std::cout << " (" << _caller_filename << ":" << std::dec << _caller_filenumber << ")";
+    sStream << " " << _s.str() << " (" << _caller_filename << ":" << std::dec << _caller_filenumber << ")";
 
-    std::cout << std::endl;
+    std::cout << sStream.str() << std::endl;
+
+    auto logFileManager = LogFileManager::instance();
+    if (logFileManager->detectorsRunning()) {
+        std::ofstream logFile(logFileManager->filename("MavLinkController", "txt"), std::ios_base::app);
+        logFile << sStream.str() << std::endl;
+    }
 
     _logMutex.unlock();
 }
 
-void set_color(LogColor LogColor)
+void set_color(LogColor LogColor, std::stringstream& s)
 {
     switch (LogColor) {
         case LogColor::Red:
-            std::cout << ANSI_COLOR_RED;
+            s << ANSI_COLOR_RED;
             break;
         case LogColor::Green:
-            std::cout << ANSI_COLOR_GREEN;
+            s << ANSI_COLOR_GREEN;
             break;
         case LogColor::Yellow:
-            std::cout << ANSI_COLOR_YELLOW;
+            s << ANSI_COLOR_YELLOW;
             break;
         case LogColor::Blue:
-            std::cout << ANSI_COLOR_BLUE;
+            s << ANSI_COLOR_BLUE;
             break;
         case LogColor::Gray:
-            std::cout << ANSI_COLOR_GRAY;
+            s << ANSI_COLOR_GRAY;
             break;
         case LogColor::Reset:
-            std::cout << ANSI_COLOR_RESET;
+            s << ANSI_COLOR_RESET;
             break;
     }
 }

@@ -173,14 +173,18 @@ void MavlinkSystem::_logCPUTemp()
     float               temp = 0.0;
 
     stream.open(fileName);
-    buffer << stream.rdbuf();
-    stream.close();
+    if (stream.is_open()) {
+        buffer << stream.rdbuf();
+        stream.close();
 
-    temp = std::stof(buffer.str());     // convert string to float
-    temp = temp / 1000;                 // convert float value to degree
-    temp = roundf(temp * 100) / 100;    // round decimal to nearest  
+        temp = std::stof(buffer.str());     // convert string to float
+        temp = temp / 1000;                 // convert float value to degree
+        temp = roundf(temp * 100) / 100;    // round decimal to nearest  
 
-    logDebug() << "CPU Temperature: " << temp << "°C";    
+        logDebug() << "CPU Temperature: " << temp << "°C";
+    } else {
+        logError() << "Failed to open CPU temperature file";
+    }
 }
 
 void MavlinkSystem::startTunnelHeartbeatSender()

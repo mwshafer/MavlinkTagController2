@@ -21,7 +21,7 @@
 enum class LogColor { Red, Green, Yellow, Blue, Gray, Reset };
 enum class LogLevel : int { Debug = 0, Info = 1, Warn = 2, Err = 3 };
 
-void set_color(LogColor LogColor);
+void set_color(LogColor LogColor, std::stringstream& s);
 
 class LogDetailed {
 public:
