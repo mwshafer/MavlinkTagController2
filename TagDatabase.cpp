@@ -56,9 +56,9 @@ bool TagDatabase::_writeDetectorConfig(const TunnelProtocol::TagInfo_t& tagInfo,
     fprintf(fp, "opMode:\tfreqSearchHardLock\n");
     fprintf(fp, "excldFreqs:\t[Inf, -Inf]\n");
     fprintf(fp, "falseAlarmProb:\t%f\n",                        tagInfo.false_alarm_probability);
-    fprintf(fp, "dataRecordPath:\t%s/data_record_%d.%d.bin\n",  logFileManager->logDir().c_str(), tagId, logFileManager->detectorStartIndex());
+    fprintf(fp, "dataRecordPath:\t%s/data_record_%d.bin\n",     logFileManager->logDir().c_str(), tagId);
     fprintf(fp, "logPath:\t%s\n",                               logFileManager->logDir().c_str());
-    fprintf(fp, "startIndex:\t%d\n",                            logFileManager->detectorStartIndex());
+    fprintf(fp, "startIndex:\t%d\n",                            1);
     fprintf(fp, "ipCntrl:\t127.0.0.1\n");
     fprintf(fp, "portCntrl:\t30000\n");
     fprintf(fp, "processedOuputPath:\t%s\n",                    logFileManager->logDir().c_str());

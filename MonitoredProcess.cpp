@@ -73,7 +73,9 @@ void MonitoredProcess::_run(void)
 				break;
 		}
 	} catch(bp::process_error& e) {
-		logError() << "MonitoredProcess::run boost::process:child threw process_error exception -" << e.what();
+		logError() << "MonitoredProcess::run boost::process:child threw process_error exception\n" 
+            << "\terror: " << e.what() << "\n"
+            << "\tcommand: " << _command;
 		_terminated = true;
 //		} catch(...) {
 //			std::cout << "MonitoredProcess::run boost::process:child threw unknown exception" << std::endl;
