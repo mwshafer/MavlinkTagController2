@@ -5,6 +5,8 @@
 
 #include <boost/process.hpp>
 
+#include <string>
+
 #include <mavlink.h>
 
 namespace bp = boost::process;
@@ -18,7 +20,7 @@ public:
     CommandHandler(MavlinkSystem* mavlink);
 
 private:
-    void _sendCommandAck        (uint32_t command, uint32_t result);
+    void _sendCommandAck        (uint32_t command, uint32_t result, std::string& ackMessage);
     bool _handleStartTags       (const mavlink_tunnel_t& tunnel);
     bool _handleEndTags         (void);
     bool _handleTag             (const mavlink_tunnel_t& tunnel);

@@ -8,6 +8,11 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <mavlink.h>
+
+#include <stdio.h>
+#include <filesystem>
+
 #include "CommandHandler.h"
 #include "TunnelProtocol.h"
 #include "MonitoredProcess.h"
@@ -16,11 +21,6 @@
 #include "channelizerTuner.h"
 #include "MavlinkSystem.h"
 #include "LogFileManager.h"
-
-#include <mavlink.h>
-
-#include <stdio.h>
-#include <filesystem>
 
 using namespace TunnelProtocol;
 
@@ -47,15 +47,17 @@ CommandHandler::CommandHandler(MavlinkSystem* mavlink)
     }
 }
 
-void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result)
+void CommandHandler::_sendCommandAck(uint32_t command, uint32_t result, std::string& ackMessage)
 {
-    AckInfo_t           ackInfo;
+    AckInfo_t ackInfo;
 
     logDebug() << "_sendCommandAck command:result" << _tunnelCommandIdToString(command) << _tunnelCommandResultToString(result);
 
+    memset(&ackInfo, 0, sizeof(ackInfo));
     ackInfo.header.command  = COMMAND_ID_ACK;
     ackInfo.command         = command;
     ackInfo.result          = result;
+    strncpy(ackInfo.message, ackMessage.c_str(), sizeof(ackInfo.message) - 1);
 
     _mavlink->sendTunnelMessage(&ackInfo, sizeof(ackInfo));
 }
@@ -357,6 +359,7 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
     memcpy(&headerInfo, tunnel.payload, sizeof(headerInfo));
 
     bool success = false;
+    std::string ackMessage;
 
     switch (headerInfo.command) {
     case COMMAND_ID_START_TAGS:
@@ -370,6 +373,9 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
         break;
     case COMMAND_ID_START_DETECTION:
         success = _handleStartDetection(tunnel);
+        if (success) {
+            ackMessage = LogFileManager::instance()->logDir();
+        }
         break;
     case COMMAND_ID_STOP_DETECTION:
         success = _handleStopDetection();
@@ -379,7 +385,7 @@ void CommandHandler::_handleTunnelMessage(const mavlink_message_t& message)
         break;
     }
 
-    _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE);
+    _sendCommandAck(headerInfo.command, success ? COMMAND_RESULT_SUCCESS : COMMAND_RESULT_FAILURE, ackMessage);
 }
 
 std::string CommandHandler::_tunnelCommandIdToString(uint32_t command)
