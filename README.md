@@ -11,6 +11,13 @@ cd ~/repos
 sudo apt-get install libboost-all-dev
 ```
 
+### Build Essential and CMake
+```
+sudo apt-get update
+sudo apt install build-essential
+sudo apt install cmake
+```
+
 ### MavlinkTagController
 This is the controller on the vehicle which talks back/forth with QGC.
 
